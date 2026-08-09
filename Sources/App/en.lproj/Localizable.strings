@@ -16,6 +16,8 @@
 "permissions.accessibility" = "Accessibility";
 "permissions.allowed" = "Allowed";
 "permissions.missing" = "Required";
+"permissions.checking" = "Checking";
+"permissions.unavailable" = "Unavailable";
 "action.openSettings" = "Open Settings";
 "language.label" = "Language";
 "language.system" = "Follow System";

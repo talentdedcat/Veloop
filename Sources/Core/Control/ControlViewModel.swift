@@ -27,6 +27,24 @@ public enum PermissionSyncState: Equatable, Sendable {
     case checking
     case available(EventPermissionStatus)
     case unavailable
+
+    public func displayState(for group: EventPermissionGroup) -> PermissionDisplayState {
+        switch self {
+        case .checking:
+            return .checking
+        case let .available(status):
+            return status.isAllowed(for: group) ? .allowed : .missing
+        case .unavailable:
+            return .unavailable
+        }
+    }
+}
+
+public enum PermissionDisplayState: Equatable, Sendable {
+    case checking
+    case allowed
+    case missing
+    case unavailable
 }
 
 @MainActor

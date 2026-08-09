@@ -16,6 +16,8 @@
 "permissions.accessibility" = "辅助功能";
 "permissions.allowed" = "已允许";
 "permissions.missing" = "需要授权";
+"permissions.checking" = "检查中";
+"permissions.unavailable" = "暂时不可用";
 "action.openSettings" = "打开设置";
 "language.label" = "语言";
 "language.system" = "跟随系统";

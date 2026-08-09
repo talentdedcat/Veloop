@@ -275,10 +275,14 @@ final class ControlViewController: NSViewController {
                 storageStepper.doubleValue = megabytes
             }
         }
-        let inputAllowed = state?.permissions.listenEvents ?? false
-        let accessibilityAllowed = state?.permissions.accessibility ?? false
-        renderPermission(inputAllowed, image: inputStatusImage, label: inputStatusLabel)
-        renderPermission(accessibilityAllowed, image: accessibilityStatusImage, label: accessibilityStatusLabel)
+        let inputPermissionState = model.permissionSyncState.displayState(for: .inputMonitoring)
+        let accessibilityPermissionState = model.permissionSyncState.displayState(for: .accessibility)
+        renderPermission(inputPermissionState, image: inputStatusImage, label: inputStatusLabel)
+        renderPermission(
+            accessibilityPermissionState,
+            image: accessibilityStatusImage,
+            label: accessibilityStatusLabel
+        )
 
         let controlsEnabled = state != nil && !model.isLoading
         masterSwitch.isEnabled = controlsEnabled
@@ -288,8 +292,8 @@ final class ControlViewController: NSViewController {
         storageField.isEnabled = controlsEnabled
         storageStepper.isEnabled = controlsEnabled
         clearButton.isEnabled = controlsEnabled && (state?.historyCount ?? 0) > 0
-        inputSettingsButton.isEnabled = !inputAllowed
-        accessibilitySettingsButton.isEnabled = !accessibilityAllowed
+        inputSettingsButton.isEnabled = inputPermissionState == .missing && !model.isLoading
+        accessibilitySettingsButton.isEnabled = accessibilityPermissionState == .missing && !model.isLoading
 
         let errorKey = localErrorKey ?? model.inlineError.map(errorKey(for:))
         errorLabel.stringValue = errorKey.map(localization.string) ?? ""
@@ -311,12 +315,26 @@ final class ControlViewController: NSViewController {
         }
     }
 
-    private func renderPermission(_ allowed: Bool, image: NSImageView, label: NSTextField) {
-        let symbol = allowed ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-        image.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-        image.contentTintColor = allowed ? .systemGreen : .systemOrange
-        label.stringValue = localization.string(allowed ? "permissions.allowed" : "permissions.missing")
-        label.textColor = allowed ? .secondaryLabelColor : .labelColor
+    private func renderPermission(
+        _ displayState: PermissionDisplayState,
+        image: NSImageView,
+        label: NSTextField
+    ) {
+        let appearance: (symbol: String, color: NSColor, key: String, textColor: NSColor)
+        switch displayState {
+        case .checking:
+            appearance = ("ellipsis.circle", .secondaryLabelColor, "permissions.checking", .secondaryLabelColor)
+        case .allowed:
+            appearance = ("checkmark.circle.fill", .systemGreen, "permissions.allowed", .secondaryLabelColor)
+        case .missing:
+            appearance = ("exclamationmark.triangle.fill", .systemOrange, "permissions.missing", .labelColor)
+        case .unavailable:
+            appearance = ("xmark.octagon.fill", .systemRed, "permissions.unavailable", .labelColor)
+        }
+        image.image = NSImage(systemSymbolName: appearance.symbol, accessibilityDescription: nil)
+        image.contentTintColor = appearance.color
+        label.stringValue = localization.string(appearance.key)
+        label.textColor = appearance.textColor
     }
 
     @objc private func languageDidChange() {
@@ -397,10 +415,10 @@ final class ControlViewController: NSViewController {
     }
 
     private func openSystemSettings(_ pane: String, permissionGroup: EventPermissionGroup) {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
-            model.markPermissionRefreshPending()
-            NSWorkspace.shared.open(url)
-        }
+        guard model.permissionSyncState.displayState(for: permissionGroup) == .missing else { return }
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") else { return }
+        model.markPermissionRefreshPending()
+        NSWorkspace.shared.open(url)
         Task { await model.requestPermissions(permissionGroup) }
     }
 
