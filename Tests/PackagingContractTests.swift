@@ -44,7 +44,7 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertFalse(releaseWorkflow.contains(".zip"))
         XCTAssertTrue(buildWorkflow.contains("create-release-dmg.sh"))
         XCTAssertTrue(buildWorkflow.contains("verify-dmg.sh"))
-        XCTAssertTrue(buildWorkflow.contains("Veloop-0.1.0-universal.dmg"))
+        XCTAssertTrue(buildWorkflow.contains("Veloop-0.1.1-universal.dmg"))
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
     }
@@ -117,11 +117,11 @@ final class PackagingContractTests: XCTestCase {
         ))
     }
 
-    func testPublicReleaseUsesTheInitialBuildNumber() throws {
+    func testPublicReleaseUsesVersion011AndBuildTwo() throws {
         let project = try text("Veloop.xcodeproj/project.pbxproj")
 
-        XCTAssertTrue(project.contains("MARKETING_VERSION = 0.1.0;"))
-        XCTAssertTrue(project.contains("CURRENT_PROJECT_VERSION = 1;"))
+        XCTAssertTrue(project.contains("MARKETING_VERSION = 0.1.1;"))
+        XCTAssertTrue(project.contains("CURRENT_PROJECT_VERSION = 2;"))
     }
 
     func testPaletteHelperIsHiddenEmbeddedAndUniversal() throws {
@@ -173,6 +173,73 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertFalse(installer.contains("DispatchQueue.main.asyncAfter"))
         XCTAssertFalse(installer.contains("NSLock"))
         XCTAssertFalse(installer.contains("createSymbolicLink"))
+    }
+
+    func testPaletteReplacementDisablesSourceBeforeStoppingHelper() throws {
+        let installer = try text("Sources/App/PaletteInputSourceInstaller.swift")
+        let replacementStart = try XCTUnwrap(installer.range(of: "if helperNeedsReplacement("))
+        let replacementEnd = try XCTUnwrap(installer.range(
+            of: "\n        }\n\n        let registrationStatus",
+            range: replacementStart.lowerBound..<installer.endIndex
+        ))
+        let replacement = installer[replacementStart.lowerBound..<replacementEnd.upperBound]
+
+        let disable = try XCTUnwrap(replacement.range(of: "disableInstalledSource()"))
+        let gracePeriod = try XCTUnwrap(replacement.range(
+            of: "Thread.sleep(forTimeInterval: Self.inputSourceDisableGracePeriod)"
+        ))
+        let stop = try XCTUnwrap(replacement.range(of: "stopInstalledHelper()"))
+        let remove = try XCTUnwrap(replacement.range(of: "removeItem(at: installedURL)"))
+        let copy = try XCTUnwrap(replacement.range(of: "copyItem(at: embeddedURL, to: installedURL)"))
+        let register = try XCTUnwrap(installer.range(
+            of: "TISRegisterInputSource(installedURL as CFURL)",
+            range: replacementEnd.upperBound..<installer.endIndex
+        ))
+
+        XCTAssertLessThan(disable.lowerBound, stop.lowerBound)
+        XCTAssertLessThan(disable.lowerBound, gracePeriod.lowerBound)
+        XCTAssertLessThan(gracePeriod.lowerBound, stop.lowerBound)
+        XCTAssertLessThan(stop.lowerBound, remove.lowerBound)
+        XCTAssertLessThan(remove.lowerBound, copy.lowerBound)
+        XCTAssertLessThan(replacementEnd.upperBound, register.lowerBound)
+    }
+
+    func testPaletteReplacementGateCoversInstallUnchangedAndUpgradePaths() throws {
+        let installer = try text("Sources/App/PaletteInputSourceInstaller.swift")
+        let comparisonStart = try XCTUnwrap(installer.range(
+            of: "private func helperNeedsReplacement"
+        ))
+        let comparisonEnd = try XCTUnwrap(installer.range(
+            of: "\n    private func stopInstalledHelper",
+            range: comparisonStart.lowerBound..<installer.endIndex
+        ))
+        let comparison = installer[comparisonStart.lowerBound..<comparisonEnd.lowerBound]
+
+        XCTAssertTrue(comparison.contains(
+            "guard fileManager.fileExists(atPath: installedURL.path) else { return true }"
+        ))
+        XCTAssertTrue(comparison.contains("embeddedData == installedData else"))
+        XCTAssertTrue(comparison.contains("return true"))
+        XCTAssertTrue(comparison.contains("return false"))
+    }
+
+    func testPaletteHelperTerminationIsBoundedWithSIGTERMAsFallback() throws {
+        let installer = try text("Sources/App/PaletteInputSourceInstaller.swift")
+        let stopStart = try XCTUnwrap(installer.range(of: "private func stopInstalledHelper"))
+        let stopEnd = try XCTUnwrap(installer.range(
+            of: "\n    private func disableInstalledSource",
+            range: stopStart.lowerBound..<installer.endIndex
+        ))
+        let stop = installer[stopStart.lowerBound..<stopEnd.lowerBound]
+
+        let terminate = try XCTUnwrap(stop.range(of: "application.terminate()"))
+        let deadline = try XCTUnwrap(stop.range(of: "helperTerminationTimeout"))
+        let fallback = try XCTUnwrap(stop.range(of: "if !application.isTerminated"))
+        let signal = try XCTUnwrap(stop.range(of: "Darwin.kill(application.processIdentifier, SIGTERM)"))
+
+        XCTAssertLessThan(terminate.lowerBound, deadline.lowerBound)
+        XCTAssertLessThan(deadline.lowerBound, fallback.lowerBound)
+        XCTAssertLessThan(fallback.lowerBound, signal.lowerBound)
     }
 
     func testPaletteActivationIsOwnedByInputSubsystemCoordinator() throws {

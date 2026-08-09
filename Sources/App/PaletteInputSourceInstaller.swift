@@ -9,6 +9,9 @@ final class PaletteInputSourceInstaller {
         "Contents/MacOS/VeloopPalette",
         "Contents/Info.plist",
     ]
+    private static let inputSourceDisableGracePeriod: TimeInterval = 0.1
+    private static let helperTerminationTimeout: TimeInterval = 0.2
+    private static let helperTerminationPollInterval: TimeInterval = 0.01
 
     private let fileManager: FileManager
 
@@ -34,8 +37,9 @@ final class PaletteInputSourceInstaller {
         try writeHostMarker()
 
         if helperNeedsReplacement(embeddedURL: embeddedURL, installedURL: installedURL) {
-            stopInstalledHelper()
             disableInstalledSource()
+            Thread.sleep(forTimeInterval: Self.inputSourceDisableGracePeriod)
+            stopInstalledHelper()
             if fileManager.fileExists(atPath: installedURL.path) {
                 try fileManager.removeItem(at: installedURL)
             }
@@ -76,7 +80,14 @@ final class PaletteInputSourceInstaller {
             withBundleIdentifier: Self.bundleIdentifier
         ) {
             application.terminate()
-            Darwin.kill(application.processIdentifier, SIGTERM)
+            let deadline = ProcessInfo.processInfo.systemUptime + Self.helperTerminationTimeout
+            while !application.isTerminated,
+                  ProcessInfo.processInfo.systemUptime < deadline {
+                Thread.sleep(forTimeInterval: Self.helperTerminationPollInterval)
+            }
+            if !application.isTerminated {
+                Darwin.kill(application.processIdentifier, SIGTERM)
+            }
         }
     }
 
