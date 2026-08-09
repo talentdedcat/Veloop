@@ -86,10 +86,10 @@ public final class ControlViewModel {
         finish(result, failure: .clearFailed)
     }
 
-    public func requestPermissions() async {
+    public func requestPermissions(_ group: EventPermissionGroup) async {
         beginOperation()
         let result: Result<ControlState, Error> = await offMain { [agent] in
-            _ = try agent.requestPermissions()
+            _ = try agent.requestPermissions(group)
             return try agent.state()
         }
         finish(result, failure: .permissionRequestFailed)

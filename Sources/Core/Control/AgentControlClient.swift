@@ -37,8 +37,8 @@ public final class AgentControlClient: AgentControlling {
         _ = try output(for: AgentRequest(command: "clear", arguments: []))
     }
 
-    public func requestPermissions() throws -> EventPermissionStatus {
-        try decodeResponse(for: AgentRequest(command: "request-permissions", arguments: []))
+    public func requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus {
+        try decodeResponse(for: AgentRequest(command: "request-permissions", arguments: [group.rawValue]))
     }
 
     public func restart() throws {

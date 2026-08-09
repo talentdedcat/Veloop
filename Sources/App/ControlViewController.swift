@@ -385,19 +385,19 @@ final class ControlViewController: NSViewController {
     }
 
     @objc private func openInputSettings() {
-        openSystemSettings("Privacy_ListenEvent")
+        openSystemSettings("Privacy_ListenEvent", permissionGroup: .inputMonitoring)
     }
 
     @objc private func openAccessibilitySettings() {
-        openSystemSettings("Privacy_Accessibility")
+        openSystemSettings("Privacy_Accessibility", permissionGroup: .accessibility)
     }
 
-    private func openSystemSettings(_ pane: String) {
+    private func openSystemSettings(_ pane: String, permissionGroup: EventPermissionGroup) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
             model.markPermissionRefreshPending()
             NSWorkspace.shared.open(url)
         }
-        Task { await model.requestPermissions() }
+        Task { await model.requestPermissions(permissionGroup) }
     }
 
     @objc private func openDataFolder() {

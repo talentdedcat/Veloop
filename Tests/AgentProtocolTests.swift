@@ -76,10 +76,90 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(started), 1)
     }
 
+    func testControlClientRequestsExactlyTheSpecifiedPermissionGroupAndDecodesStatus() throws {
+        let expected = EventPermissionStatus(
+            listenEvents: false,
+            postEvents: true,
+            accessibility: true
+        )
+        let requester = RecordingRequester(response: .success(try encodedJSON(expected)))
+        let client = AgentControlClient(requester: requester)
+
+        let status = try client.requestPermissions(.accessibility)
+
+        XCTAssertEqual(status, expected)
+        XCTAssertEqual(
+            requester.requests,
+            [AgentRequest(command: "request-permissions", arguments: ["accessibility"])]
+        )
+    }
+
+    func testRuntimePermissionRequestRequiresExactlyOneKnownGroupAndSynchronizesReturnedStatus() throws {
+        let runtime = try source("Sources/Core/Agent/VeloopAgentRuntime.swift")
+        let requestStart = try XCTUnwrap(runtime.range(of: "private func requestPermissionStatus"))
+        let requestEnd = try XCTUnwrap(runtime.range(
+            of: "\n    private func encodedResponse",
+            range: requestStart.lowerBound..<runtime.endIndex
+        ))
+        let request = runtime[requestStart.lowerBound..<requestEnd.lowerBound]
+
+        XCTAssertTrue(runtime.contains("requestPermissionStatus(arguments: request.arguments)"))
+        XCTAssertTrue(request.contains("arguments.count == 1"))
+        XCTAssertTrue(request.contains("EventPermissionGroup(rawValue: arguments[0])"))
+        XCTAssertTrue(request.contains("return .failure(\"invalid permission group\")"))
+        XCTAssertTrue(request.contains("permissions.request(group)"))
+        XCTAssertTrue(request.contains("synchronizeInputSubsystem(listenEvents: status.listenEvents)"))
+        XCTAssertTrue(request.contains("return encodedResponse(status)"))
+    }
+
+    func testRuntimeNoLongerOwnsAgentRestart() throws {
+        let runtime = try source("Sources/Core/Agent/VeloopAgentRuntime.swift")
+
+        XCTAssertFalse(runtime.contains("case \"restart\":"))
+        XCTAssertFalse(runtime.contains("AgentProcessRestarter"))
+        XCTAssertFalse(exists("Sources/Core/Agent/AgentProcessRestarter.swift"))
+    }
+
+    func testPermissionControllerHasNoParameterlessRequestShim() throws {
+        let controller = try source("Sources/Core/Permissions/EventPermissionController.swift")
+
+        XCTAssertFalse(controller.contains("func request() -> EventPermissionStatus"))
+    }
+
     private func temporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         return root
+    }
+
+    private func encodedJSON<T: Encodable>(_ value: T) throws -> String {
+        String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
+    }
+
+    private var repositoryRoot: URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    private func exists(_ relativePath: String) -> Bool {
+        FileManager.default.fileExists(atPath: repositoryRoot.appendingPathComponent(relativePath).path)
+    }
+
+    private func source(_ relativePath: String) throws -> String {
+        try String(contentsOf: repositoryRoot.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+}
+
+private final class RecordingRequester: AgentRequesting {
+    private(set) var requests: [AgentRequest] = []
+    private let response: AgentResponse
+
+    init(response: AgentResponse) {
+        self.response = response
+    }
+
+    func send(_ request: AgentRequest) throws -> AgentResponse {
+        requests.append(request)
+        return response
     }
 }

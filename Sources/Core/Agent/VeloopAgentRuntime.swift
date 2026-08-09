@@ -9,7 +9,6 @@ public final class VeloopAgentRuntime {
     private let permissions: EventPermissionController
     private let monitor: PasteboardMonitor
     private let processLock: ProcessLock
-    private let processRestarter: AgentProcessRestarter
     private let previewPreference: PreviewContentPreference
     private let caretLocator: CaretLocator
     private var inputSubsystem: InputSubsystemCoordinator!
@@ -104,7 +103,6 @@ public final class VeloopAgentRuntime {
         self.configuration = configuration
         self.enabled = configuration.startEnabled
         self.processLock = ProcessLock(url: paths.processLock)
-        self.processRestarter = AgentProcessRestarter()
         self.monitor = PasteboardMonitor(
             capturer: capturer,
             historyStore: historyStore,
@@ -253,12 +251,7 @@ public final class VeloopAgentRuntime {
         case "control-update":
             return applyControlUpdate(arguments: request.arguments)
         case "request-permissions":
-            return encodedResponse(requestPermissionStatus())
-        case "restart":
-            processRestarter.restart(bundleURL: Bundle.main.bundleURL) { [weak self] in
-                self?.stop()
-            }
-            return .success("restarting")
+            return requestPermissionStatus(arguments: request.arguments)
         default:
             return .failure("unknown command")
         }
@@ -360,17 +353,24 @@ public final class VeloopAgentRuntime {
         }
     }
 
-    private func requestPermissionStatus() -> EventPermissionStatus {
+    private func requestPermissionStatus(arguments: [String]) -> AgentResponse {
+        guard arguments.count == 1,
+              let group = EventPermissionGroup(rawValue: arguments[0]) else {
+            return .failure("invalid permission group")
+        }
+
+        let status: EventPermissionStatus
         if Thread.isMainThread {
-            let status = permissions.request()
+            status = permissions.request(group)
             synchronizeInputSubsystem(listenEvents: status.listenEvents)
-            return status
+        } else {
+            status = DispatchQueue.main.sync { [self] in
+                let status = permissions.request(group)
+                synchronizeInputSubsystem(listenEvents: status.listenEvents)
+                return status
+            }
         }
-        return DispatchQueue.main.sync { [self] in
-            let status = permissions.request()
-            synchronizeInputSubsystem(listenEvents: status.listenEvents)
-            return status
-        }
+        return encodedResponse(status)
     }
 
     private func encodedResponse<T: Encodable>(_ value: T) -> AgentResponse {

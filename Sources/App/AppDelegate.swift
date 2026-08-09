@@ -69,7 +69,9 @@ private final class UnavailableControlAgent: AgentControlling {
     func state() throws -> ControlState { throw UnavailableControlAgentError.unavailable }
     func update(_ update: ControlUpdate) throws -> ControlState { throw UnavailableControlAgentError.unavailable }
     func clearHistory() throws { throw UnavailableControlAgentError.unavailable }
-    func requestPermissions() throws -> EventPermissionStatus { throw UnavailableControlAgentError.unavailable }
+    func requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus {
+        throw UnavailableControlAgentError.unavailable
+    }
     func restart() throws { throw UnavailableControlAgentError.unavailable }
 }
 

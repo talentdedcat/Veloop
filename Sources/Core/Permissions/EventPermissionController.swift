@@ -86,10 +86,4 @@ final class EventPermissionController {
 
         return status()
     }
-
-    @discardableResult
-    func request() -> EventPermissionStatus {
-        _ = request(.inputMonitoring)
-        return request(.accessibility)
-    }
 }
