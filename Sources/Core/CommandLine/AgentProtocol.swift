@@ -1,11 +1,11 @@
 import Foundation
 
-struct AgentRequest: Codable, Equatable {
+struct AgentRequest: Codable, Equatable, Sendable {
     let command: String
     let arguments: [String]
 }
 
-struct AgentResponse: Codable, Equatable {
+struct AgentResponse: Codable, Equatable, Sendable {
     let succeeded: Bool
     let output: String?
     let error: String?

@@ -150,16 +150,25 @@ final class AgentProtocolTests: XCTestCase {
     }
 }
 
-private final class RecordingRequester: AgentRequesting {
-    private(set) var requests: [AgentRequest] = []
+private final class RecordingRequester: AgentRequesting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var requestStorage: [AgentRequest] = []
     private let response: AgentResponse
+
+    var requests: [AgentRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestStorage
+    }
 
     init(response: AgentResponse) {
         self.response = response
     }
 
     func send(_ request: AgentRequest) throws -> AgentResponse {
-        requests.append(request)
+        lock.lock()
+        requestStorage.append(request)
+        lock.unlock()
         return response
     }
 }

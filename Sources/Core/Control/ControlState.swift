@@ -41,11 +41,14 @@ public struct ControlUpdate: Codable, Equatable, Sendable {
     }
 }
 
-public protocol AgentControlling: AnyObject {
+public protocol AgentControlling: AnyObject, Sendable {
     func state() throws -> ControlState
     func update(_ update: ControlUpdate) throws -> ControlState
     func clearHistory() throws
     func requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus
-    // Temporary compile bridge until Task 3 moves restart into the app lifecycle.
-    func restart() throws
+}
+
+public protocol AgentLifecycleControlling: AnyObject, Sendable {
+    func ensureRegisteredAndRunning() throws
+    func restartRegisteredAgent() throws
 }

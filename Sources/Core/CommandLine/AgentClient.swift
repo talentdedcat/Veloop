@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-protocol AgentRequesting: AnyObject {
+protocol AgentRequesting: AnyObject, Sendable {
     func send(_ request: AgentRequest) throws -> AgentResponse
 }
 
