@@ -79,7 +79,7 @@ final class PackagingContractTests: XCTestCase {
             PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         )
         let project = try text("Veloop.xcodeproj/project.pbxproj")
-        let registration = try text("Sources/App/AgentRegistrationController.swift")
+        let registration = try text("Sources/Core/Agent/AgentRegistrationController.swift")
         let constants = try text("Sources/Core/Support/AppConstants.swift")
         let verifier = try text("Packaging/verify-dmg.sh")
 
@@ -153,7 +153,7 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertEqual(plist["LSUIElement"] as? Bool, true)
     }
 
-    func testAppInstallsPaletteBeforeStartingAgent() throws {
+    func testAppInstallsPaletteBeforeSynchronizingAgent() throws {
         let delegate = try text("Sources/App/AppDelegate.swift")
         let main = try text("Sources/App/main.swift")
         XCTAssertTrue(delegate.contains("@MainActor\nfinal class AppDelegate"))
@@ -162,7 +162,7 @@ final class PackagingContractTests: XCTestCase {
         let palette = try XCTUnwrap(
             delegate.range(of: "ensurePaletteInstalled()", range: launch.lowerBound..<delegate.endIndex)
         )
-        let agent = try XCTUnwrap(delegate.range(of: "agentRegistrationController.ensureRegistered()"))
+        let agent = try XCTUnwrap(delegate.range(of: "let agent: AgentControlling"))
 
         XCTAssertLessThan(palette.lowerBound, agent.lowerBound)
     }
@@ -303,23 +303,22 @@ final class PackagingContractTests: XCTestCase {
     func testApplicationLaunchSynchronizesHelperOwnedPermissionState() throws {
         let delegate = try text("Sources/App/AppDelegate.swift")
 
-        let registration = try XCTUnwrap(delegate.range(of: "try? agentRegistrationController.ensureRegistered()"))
         let showWindow = try XCTUnwrap(delegate.range(of: "controller.showWindow(nil)"))
         let synchronize = try XCTUnwrap(delegate.range(of: "await viewModel.synchronizeOnLaunch()"))
-        XCTAssertLessThan(registration.lowerBound, showWindow.lowerBound)
         XCTAssertLessThan(showWindow.lowerBound, synchronize.lowerBound)
+        XCTAssertTrue(delegate.contains("lifecycle: agentRegistrationController"))
+        XCTAssertFalse(delegate.contains("ensureRegistered()"))
         XCTAssertFalse(delegate.contains("launchAgent()"))
         XCTAssertFalse(delegate.contains("startupTask"))
     }
 
-    func testApplicationActivationEnsuresAgentBeforeRefreshingState() throws {
+    func testApplicationActivationDelegatesAgentRefreshToModel() throws {
         let delegate = try text("Sources/App/AppDelegate.swift")
         let activation = try XCTUnwrap(delegate.range(of: "func applicationDidBecomeActive"))
         let suffix = delegate[activation.lowerBound...]
-        let launch = try XCTUnwrap(suffix.range(of: "try? agentRegistrationController.ensureRegistered()"))
-        let refresh = try XCTUnwrap(suffix.range(of: "await viewModel.applicationDidBecomeActive()"))
 
-        XCTAssertLessThan(launch.lowerBound, refresh.lowerBound)
+        XCTAssertTrue(suffix.contains("Task { await viewModel.applicationDidBecomeActive() }"))
+        XCTAssertFalse(suffix.contains("ensureRegistered"))
     }
 
     func testAgentLaunchDoesNotRequestPermissions() throws {
@@ -329,7 +328,7 @@ final class PackagingContractTests: XCTestCase {
     }
 
     func testLoginStartupUsesAUserLaunchAgentAndOnlyMigratesLegacyServiceManagement() throws {
-        let registration = try text("Sources/App/AgentRegistrationController.swift")
+        let registration = try text("Sources/Core/Agent/AgentRegistrationController.swift")
 
         XCTAssertTrue(registration.contains("Library/LaunchAgents"))
         XCTAssertTrue(registration.contains("launchctl"))

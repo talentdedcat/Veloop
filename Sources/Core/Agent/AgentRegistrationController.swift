@@ -1,9 +1,11 @@
 import Foundation
 import ServiceManagement
 
-final class AgentRegistrationController {
-    typealias Launchctl = ([String]) throws -> Int32
-    typealias UnregisterLegacyService = () throws -> Void
+// The lock serializes every lifecycle and preference operation that touches the
+// shared defaults, filesystem, or launchctl collaborators.
+public final class AgentRegistrationController: AgentLifecycleControlling, @unchecked Sendable {
+    typealias Launchctl = @Sendable ([String]) throws -> Int32
+    typealias UnregisterLegacyService = @Sendable () throws -> Void
 
     private static let label = "com.veloop.service"
     private static let desiredRegistrationKey = "veloop.startAtLogin"
@@ -16,6 +18,27 @@ final class AgentRegistrationController {
     private let currentBuild: String
     private let unregisterLegacyService: UnregisterLegacyService
     private let launchctl: Launchctl
+    private let lock = NSLock()
+    private let preferenceQueue = DispatchQueue(
+        label: "com.veloop.agent-registration-preference",
+        qos: .utility
+    )
+
+    public convenience init() {
+        self.init(
+            defaults: .standard,
+            fileManager: .default,
+            launchAgentURL: nil,
+            agentExecutableURL: nil,
+            currentBuild: nil,
+            unregisterLegacyService: {
+                try AgentRegistrationController.unregisterLegacyLoginItem()
+            },
+            launchctl: { arguments in
+                try AgentRegistrationController.runLaunchctl(arguments)
+            }
+        )
+    }
 
     init(
         defaults: UserDefaults = .standard,
@@ -23,10 +46,10 @@ final class AgentRegistrationController {
         launchAgentURL: URL? = nil,
         agentExecutableURL: URL? = nil,
         currentBuild: String? = nil,
-        unregisterLegacyService: @escaping UnregisterLegacyService = AgentRegistrationController.unregisterLegacyLoginItem,
-        launchctl: @escaping Launchctl = AgentRegistrationController.runLaunchctl
+        unregisterLegacyService: @escaping UnregisterLegacyService,
+        launchctl: @escaping Launchctl
     ) {
-        let bundleURL = Self.embeddedAgentBundleURL(fileManager: fileManager)
+        let bundleURL = Self.embeddedAgentBundleURL()
         self.defaults = defaults
         self.fileManager = fileManager
         self.launchAgentURL = launchAgentURL ?? fileManager.homeDirectoryForCurrentUser
@@ -40,21 +63,39 @@ final class AgentRegistrationController {
         self.launchctl = launchctl
     }
 
-    var isStartAtLoginEnabled: Bool {
+    public var isStartAtLoginEnabled: Bool {
+        startAtLoginPreference
+    }
+
+    private var startAtLoginPreference: Bool {
         guard defaults.object(forKey: Self.desiredRegistrationKey) != nil else {
             return true
         }
         return defaults.bool(forKey: Self.desiredRegistrationKey)
     }
 
-    func ensureRegistered() throws {
-        try migrateLegacyLoginItemIfNeeded()
-        guard isStartAtLoginEnabled else {
-            try removeLaunchAgentFile()
-            return
+    public func ensureRegisteredAndRunning() throws {
+        try lock.withLock {
+            try ensureRegisteredAndRunningLocked()
         }
+    }
 
-        try installLaunchAgent()
+    private func ensureRegisteredAndRunningLocked() throws {
+        try migrateLegacyLoginItemIfNeeded()
+        let shouldRemoveLaunchAgent = !startAtLoginPreference
+        do {
+            try installLaunchAgent()
+            try requireSuccess(["kickstart", serviceTarget])
+            try requireSuccess(["print", serviceTarget])
+        } catch {
+            if shouldRemoveLaunchAgent {
+                try? removeLaunchAgentFile()
+            }
+            throw error
+        }
+        if shouldRemoveLaunchAgent {
+            try removeLaunchAgentFile()
+        }
     }
 
     private func installLaunchAgent() throws {
@@ -77,13 +118,38 @@ final class AgentRegistrationController {
     }
 
     func setStartAtLoginEnabled(_ enabled: Bool) throws {
-        try migrateLegacyLoginItemIfNeeded()
-        if enabled {
-            try installLaunchAgent()
-        } else {
-            try removeLaunchAgentFile()
+        try lock.withLock {
+            try migrateLegacyLoginItemIfNeeded()
+            if enabled {
+                try installLaunchAgent()
+                try requireSuccess(["kickstart", serviceTarget])
+                try requireSuccess(["print", serviceTarget])
+            } else {
+                try removeLaunchAgentFile()
+            }
+            defaults.set(enabled, forKey: Self.desiredRegistrationKey)
         }
-        defaults.set(enabled, forKey: Self.desiredRegistrationKey)
+    }
+
+    public func setStartAtLoginEnabled(
+        _ enabled: Bool,
+        completion: @escaping @Sendable (Bool) -> Void
+    ) {
+        preferenceQueue.async { [self] in
+            do {
+                try setStartAtLoginEnabled(enabled)
+                completion(true)
+            } catch {
+                completion(false)
+            }
+        }
+    }
+
+    public func restartRegisteredAgent() throws {
+        try lock.withLock {
+            try ensureRegisteredAndRunningLocked()
+            try requireSuccess(["kickstart", "-k", serviceTarget])
+        }
     }
 
     private var domainTarget: String {
@@ -132,13 +198,9 @@ final class AgentRegistrationController {
         }
     }
 
-    private static func embeddedAgentBundleURL(fileManager: FileManager) -> URL {
+    private static func embeddedAgentBundleURL() -> URL {
         let loginItems = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LoginItems")
-        let packaged = loginItems.appendingPathComponent("Veloop.app")
-        if fileManager.fileExists(atPath: packaged.path) {
-            return packaged
-        }
-        return loginItems.appendingPathComponent("VeloopService.app")
+        return loginItems.appendingPathComponent("Veloop.app")
     }
 
     private static func runLaunchctl(_ arguments: [String]) throws -> Int32 {
@@ -167,4 +229,12 @@ final class AgentRegistrationController {
 
 private enum AgentRegistrationError: Error {
     case launchctlFailed(Int32)
+}
+
+private extension NSLock {
+    func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock()
+        defer { unlock() }
+        return try body()
+    }
 }

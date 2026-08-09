@@ -17,7 +17,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ensurePaletteInstalled()
-        _ = try? agentRegistrationController.ensureRegistered()
 
         let agent: AgentControlling
         do {
@@ -25,7 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             agent = UnavailableControlAgent()
         }
-        let viewModel = ControlViewModel(agent: agent)
+        let viewModel = ControlViewModel(
+            agent: agent,
+            lifecycle: agentRegistrationController
+        )
         let controller = ControlWindowController(
             localization: localizationController,
             model: viewModel,
@@ -41,7 +43,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         guard let viewModel else { return }
         ensurePaletteInstalled()
-        _ = try? agentRegistrationController.ensureRegistered()
         Task { await viewModel.applicationDidBecomeActive() }
     }
 
@@ -65,14 +66,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-private final class UnavailableControlAgent: AgentControlling {
+private final class UnavailableControlAgent: AgentControlling, @unchecked Sendable {
     func state() throws -> ControlState { throw UnavailableControlAgentError.unavailable }
     func update(_ update: ControlUpdate) throws -> ControlState { throw UnavailableControlAgentError.unavailable }
     func clearHistory() throws { throw UnavailableControlAgentError.unavailable }
     func requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus {
         throw UnavailableControlAgentError.unavailable
     }
-    func restart() throws { throw UnavailableControlAgentError.unavailable }
 }
 
 private enum UnavailableControlAgentError: Error {

@@ -60,11 +60,6 @@ public final class ControlViewModel {
         self.sleep = sleep
     }
 
-    // Temporary compatibility initializer for the app target; Task 4 injects its lifecycle controller.
-    public convenience init(agent: AgentControlling) {
-        self.init(agent: agent, lifecycle: CompatibilityAgentLifecycle())
-    }
-
     public func markPermissionRefreshPending() {
         permissionRefreshPending = true
     }
@@ -356,11 +351,6 @@ private final class OffMainCancellationGate: @unchecked Sendable {
         cancelled = true
         lock.unlock()
     }
-}
-
-private final class CompatibilityAgentLifecycle: AgentLifecycleControlling {
-    func ensureRegisteredAndRunning() throws {}
-    func restartRegisteredAgent() throws {}
 }
 
 private extension ControlState {

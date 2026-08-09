@@ -39,6 +39,7 @@ final class ControlViewController: NSViewController {
     private let accessibilityPermissionLabel = NSTextField(labelWithString: "")
     private let languageLabel = NSTextField(labelWithString: "")
     private var localErrorKey: String?
+    private var startAtLoginRevision: UInt64 = 0
 
     init(
         localization: LocalizationController,
@@ -328,14 +329,17 @@ final class ControlViewController: NSViewController {
     }
 
     @objc private func startAtLoginChanged() {
-        Task {
-            do {
-                try registrationController.setStartAtLoginEnabled(startAtLoginSwitch.state == .on)
-                localErrorKey = nil
-            } catch {
-                localErrorKey = "error.registrationFailed"
+        let enabled = startAtLoginSwitch.state == .on
+        startAtLoginRevision &+= 1
+        let revision = startAtLoginRevision
+        let registrationController = registrationController
+        registrationController.setStartAtLoginEnabled(enabled) { [weak self] succeeded in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard revision == self.startAtLoginRevision else { return }
+                localErrorKey = succeeded ? nil : "error.registrationFailed"
+                render()
             }
-            render()
         }
     }
 
