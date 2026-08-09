@@ -27,13 +27,35 @@ Veloop is a native clipboard history app for macOS. It preserves complete, mater
 
 ## Install
 
+### Homebrew
+
+```bash
+brew tap talentdedcat/Veloop https://github.com/talentdedcat/Veloop.git
+brew trust --tap talentdedcat/Veloop
+brew install --cask Veloop
+```
+
+> [!IMPORTANT]
+> **First installation:** v0.1.0 is ad-hoc signed and not notarized. Only remove quarantine from Veloop installed through this repository. Before the first launch, run:
+>
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/Veloop.app
+> open /Applications/Veloop.app
+> ```
+
 ### DMG
 
-[Download `Veloop-0.1.0-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.0/Veloop-0.1.0-universal.dmg), open it, and drag `Veloop.app` to `Applications`. Launch Veloop once, then enable **Start at login** in the control app if you want the Agent to run automatically.
+[Download `Veloop-0.1.0-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.0/Veloop-0.1.0-universal.dmg), open it, and drag `Veloop.app` to `Applications`.
 
-> **First launch:** v0.1.0 is ad-hoc signed and not notarized. After attempting to open Veloop, go to **System Settings > Privacy & Security**, scroll to **Security**, and choose **Open Anyway**. Only override this protection for the DMG downloaded from this repository. See [Apple's guidance](https://support.apple.com/guide/mac-help/mh40616/mac).
+> [!IMPORTANT]
+> **First installation:** v0.1.0 is ad-hoc signed and not notarized. Only remove quarantine from the DMG downloaded from this repository. After copying Veloop to Applications and before the first launch, run:
+>
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/Veloop.app
+> open /Applications/Veloop.app
+> ```
 
-The DMG contains `Veloop.app` and an Applications shortcut. On macOS 26, a newly registered Character Palette may require one sign-out and sign-in before the current login session discovers it.
+After launching Veloop, enable **Start at login** in the control app if you want the Agent to run automatically. The DMG contains `Veloop.app` and an Applications shortcut. On macOS 26, a newly registered Character Palette may require one sign-out and sign-in before the current login session discovers it.
 
 ## Quick start
 

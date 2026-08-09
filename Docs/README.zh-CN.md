@@ -27,13 +27,35 @@ Veloop 是一款原生 macOS 剪贴板历史应用。它完整保存可物化读
 
 ## 安装
 
+### Homebrew
+
+```bash
+brew tap talentdedcat/Veloop https://github.com/talentdedcat/Veloop.git
+brew trust --tap talentdedcat/Veloop
+brew install --cask Veloop
+```
+
+> [!IMPORTANT]
+> **首次安装：** v0.1.0 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对通过本仓库安装的 Veloop 解除隔离。首次启动前请运行：
+>
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/Veloop.app
+> open /Applications/Veloop.app
+> ```
+
 ### DMG
 
-[下载 `Veloop-0.1.0-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.0/Veloop-0.1.0-universal.dmg)，打开后将 `Veloop.app` 拖入 `Applications`。首次启动 Veloop 后，如需 Agent 自动运行，请在控制应用中开启“登录时启动”。
+[下载 `Veloop-0.1.0-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.0/Veloop-0.1.0-universal.dmg)，打开后将 `Veloop.app` 拖入“应用程序”。
 
-> **首次启动：** v0.1.0 使用 ad-hoc 签名，尚未经过 Apple 公证。尝试打开 Veloop 后，请进入“**系统设置 > 隐私与安全性**”，滚动到“**安全性**”并选择“**仍要打开**”。仅对从本仓库下载的 DMG 执行此操作。参阅 [Apple 官方说明](https://support.apple.com/guide/mac-help/mh40616/mac)。
+> [!IMPORTANT]
+> **首次安装：** v0.1.0 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对从本仓库下载的 DMG 中安装的 Veloop 解除隔离。将 Veloop 复制到“应用程序”后、首次启动前请运行：
+>
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/Veloop.app
+> open /Applications/Veloop.app
+> ```
 
-DMG 中包含 `Veloop.app` 和 Applications 快捷方式。在 macOS 26 上，全新注册的 Character Palette 可能需要注销并重新登录一次，当前登录会话才能发现它。
+启动 Veloop 后，如需 Agent 自动运行，请在控制应用中开启“登录时启动”。DMG 中包含 `Veloop.app` 和 Applications 快捷方式。在 macOS 26 上，全新注册的 Character Palette 可能需要注销并重新登录一次，当前登录会话才能发现它。
 
 ## 快速开始
 
