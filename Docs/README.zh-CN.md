@@ -6,7 +6,7 @@
     <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Universal arm64 与 x86_64" src="https://img.shields.io/badge/Universal-arm64_%2B_x86__64-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-f05237?style=flat&logo=swift&logoColor=white">
-    <img alt="版本 v0.1.1" src="https://img.shields.io/badge/release-v0.1.1-1683c7?style=flat">
+    <img alt="版本 v0.1.2" src="https://img.shields.io/badge/release-v0.1.2-1683c7?style=flat">
     <img alt="MIT 许可证" src="https://img.shields.io/badge/license-MIT-5b9d2f?style=flat">
   </p>
   <p><a href="../README.md">English</a> · 简体中文</p>
@@ -36,7 +36,7 @@ brew install --cask Veloop
 ```
 
 > [!IMPORTANT]
-> **首次安装：** v0.1.1 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对通过本仓库安装的 Veloop 解除隔离。首次启动前请运行：
+> **首次安装：** v0.1.2 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对通过本仓库安装的 Veloop 解除隔离。首次启动前请运行：
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -45,10 +45,10 @@ brew install --cask Veloop
 
 ### DMG
 
-[下载 `Veloop-0.1.1-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.1/Veloop-0.1.1-universal.dmg)，打开后将 `Veloop.app` 拖入“应用程序”。
+[下载 `Veloop-0.1.2-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.2/Veloop-0.1.2-universal.dmg)，打开后将 `Veloop.app` 拖入“应用程序”。
 
 > [!IMPORTANT]
-> **首次安装：** v0.1.1 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对从本仓库下载的 DMG 中安装的 Veloop 解除隔离。将 Veloop 复制到“应用程序”后、首次启动前请运行：
+> **首次安装：** v0.1.2 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对从本仓库下载的 DMG 中安装的 Veloop 解除隔离。将 Veloop 复制到“应用程序”后、首次启动前请运行：
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -90,6 +90,12 @@ brew install --cask Veloop
 </table>
 
 文本光标定位不使用辅助功能权限。缺少这两项权限时，剪贴板捕获仍会继续。当 Veloop 关闭或输入监控不可用时，全局 Event Tap 停止，隐藏 Palette 取消选中，系统标准粘贴行为保持不变。
+
+### 权限状态与故障排查
+
+权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。普通启动不会请求权限。仅在相应权限缺失时使用权限按钮。
+
+从“系统设置”返回后，Veloop 会重启 Agent 并刷新权限状态。由于此版本仍使用 ad-hoc 签名，升级后可能需要在“系统设置”中重新启用 Veloop。
 
 ## 控制应用
 

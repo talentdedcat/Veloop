@@ -6,8 +6,8 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 
 | Module | Responsibility |
 | --- | --- |
-| `Sources/App/` | Control app lifecycle, AppKit settings UI, localization, launch-at-login registration, permission links, and Palette installation. |
-| `Sources/Agent/` | Entry point for the embedded background Agent and assembly of the long-running runtime. |
+| `Sources/App/` | Control app lifecycle, Agent registration and restart coordination, AppKit settings UI, localization, permission presentation and links, and Palette installation. |
+| `Sources/Agent/` | Entry point for the embedded background Agent and assembly of the long-running runtime that owns live permission checks. |
 | `Sources/Core/` | Shared static Swift module for clipboard capture, history, configuration, global input, Focus Stack presentation, storage, local IPC, and system wrappers. |
 | `Sources/Palette/` | Minimal InputMethodKit bridge that retains the active `IMKTextInput` session and answers bounded local caret queries. |
 | `Sources/Veloopctl/` | Thin executable entry point for the local `veloopctl` command surface. |
@@ -15,6 +15,8 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 `Veloopctl` is the thin `veloopctl` entry point. Argument parsing, bounded Unix-socket IPC, and privacy-safe output remain in Core so they can be exercised independently.
 
 The Core module is shared by the shipped executables and the XCTest contracts. System API ownership stays in focused wrappers so capture, retention, presentation, and control logic remain independently testable.
+
+The control app coordinates Agent lifecycle through `AgentRegistrationController` and reads permission status over Agent IPC. Returning from System Settings triggers an Agent restart followed by a bounded state refresh; permission truth remains owned by the running Agent.
 
 ## Runtime flow
 

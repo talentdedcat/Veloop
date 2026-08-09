@@ -52,7 +52,7 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertFalse(releaseWorkflow.contains(".zip"))
         XCTAssertTrue(buildWorkflow.contains("create-release-dmg.sh"))
         XCTAssertTrue(buildWorkflow.contains("verify-dmg.sh"))
-        XCTAssertTrue(buildWorkflow.contains("Veloop-0.1.1-universal.dmg"))
+        XCTAssertTrue(buildWorkflow.contains("Veloop-0.1.2-universal.dmg"))
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
     }
@@ -125,11 +125,11 @@ final class PackagingContractTests: XCTestCase {
         ))
     }
 
-    func testPublicReleaseUsesVersion011AndBuildTwo() throws {
+    func testPublicReleaseUsesVersion012AndBuildThree() throws {
         let project = try text("Veloop.xcodeproj/project.pbxproj")
 
-        XCTAssertTrue(project.contains("MARKETING_VERSION = 0.1.1;"))
-        XCTAssertTrue(project.contains("CURRENT_PROJECT_VERSION = 2;"))
+        XCTAssertTrue(project.contains("MARKETING_VERSION = 0.1.2;"))
+        XCTAssertTrue(project.contains("CURRENT_PROJECT_VERSION = 3;"))
     }
 
     func testPaletteHelperIsHiddenEmbeddedAndUniversal() throws {

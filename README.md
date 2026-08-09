@@ -6,7 +6,7 @@
     <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Universal arm64 and x86_64" src="https://img.shields.io/badge/Universal-arm64_%2B_x86__64-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-f05237?style=flat&logo=swift&logoColor=white">
-    <img alt="release v0.1.1" src="https://img.shields.io/badge/release-v0.1.1-1683c7?style=flat">
+    <img alt="release v0.1.2" src="https://img.shields.io/badge/release-v0.1.2-1683c7?style=flat">
     <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5b9d2f?style=flat">
   </p>
   <p>English · <a href="Docs/README.zh-CN.md">简体中文</a></p>
@@ -36,7 +36,7 @@ brew install --cask Veloop
 ```
 
 > [!IMPORTANT]
-> **First installation:** v0.1.1 is ad-hoc signed and not notarized. Only remove quarantine from Veloop installed through this repository. Before the first launch, run:
+> **First installation:** v0.1.2 is ad-hoc signed and not notarized. Only remove quarantine from Veloop installed through this repository. Before the first launch, run:
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -45,10 +45,10 @@ brew install --cask Veloop
 
 ### DMG
 
-[Download `Veloop-0.1.1-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.1/Veloop-0.1.1-universal.dmg), open it, and drag `Veloop.app` to `Applications`.
+[Download `Veloop-0.1.2-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.2/Veloop-0.1.2-universal.dmg), open it, and drag `Veloop.app` to `Applications`.
 
 > [!IMPORTANT]
-> **First installation:** v0.1.1 is ad-hoc signed and not notarized. Only remove quarantine from the DMG downloaded from this repository. After copying Veloop to Applications and before the first launch, run:
+> **First installation:** v0.1.2 is ad-hoc signed and not notarized. Only remove quarantine from the DMG downloaded from this repository. After copying Veloop to Applications and before the first launch, run:
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -90,6 +90,12 @@ Approve Veloop in **System Settings > Privacy & Security**:
 </table>
 
 Caret positioning does not use Accessibility permission. Clipboard capture continues without either permission. When Veloop is disabled or Input Monitoring is unavailable, the global Event Tap stops, the hidden Palette is deselected, and standard paste behavior remains unchanged.
+
+### Permission status and troubleshooting
+
+Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” An ordinary launch does not prompt for permissions. Use the permission buttons only when the corresponding permission is missing.
+
+After returning from System Settings, Veloop restarts the Agent and refreshes the permission status. Because this release remains ad-hoc signed, an upgrade may require enabling Veloop again in System Settings.
 
 ## Control app
 
