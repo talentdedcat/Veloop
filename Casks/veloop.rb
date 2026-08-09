@@ -2,7 +2,7 @@
 
 cask "veloop" do
   version "0.1.2"
-  sha256 "3e91a10ab5db059232e34e7856569a14149a891c7cf77f4bc73326665caffea0"
+  sha256 "6ad90b9d6e7055d9d09f0553b2261450b8a7150f4e908564707121cca532eb72"
 
   url "https://github.com/talentdedcat/Veloop/releases/download/v#{version}/Veloop-#{version}-universal.dmg"
   name "Veloop"
@@ -19,6 +19,10 @@ cask "veloop" do
             signal:    [
               ["TERM", "com.veloop.service"],
               ["TERM", "com.talentdedcat.veloop.palette"],
+            ],
+            delete:    [
+              "~/Library/Input Methods/VeloopPalette.app",
+              "~/Library/LaunchAgents/com.veloop.service.plist",
             ]
 
   zap trash: [
@@ -26,8 +30,6 @@ cask "veloop" do
     "~/Library/Caches/com.veloop.app",
     "~/Library/Caches/com.veloop.diagnostics.carethost",
     "~/Library/Caches/com.veloop.service",
-    "~/Library/Input Methods/VeloopPalette.app",
-    "~/Library/LaunchAgents/com.veloop.service.plist",
     "~/Library/Preferences/com.veloop.app.plist",
     "~/Library/Preferences/com.veloop.service.plist",
     "~/Library/Preferences/com.veloop.shared.plist",
