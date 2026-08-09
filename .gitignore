@@ -11,10 +11,6 @@ DerivedData/
 .worktrees/
 Docs/manual-integration-tests.md
 Packaging/measure-performance.sh
-Configuration/
-Packaging/
-Veloop.xcodeproj/
-.github/workflows/
 Package.swift
 *.xcuserstate
 xcuserdata/
