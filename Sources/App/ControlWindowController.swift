@@ -2,16 +2,19 @@ import AppKit
 import VeloopCore
 
 final class ControlWindowController: NSWindowController {
+    static let contentSize = NSSize(width: 680, height: 502)
+
     private let localization: LocalizationController
 
     init(
         localization: LocalizationController,
         model: ControlViewModel,
-        registrationController: AgentRegistrationController
+        registrationController: AgentRegistrationController,
+        trashCleanupStore: TrashCleanupPreferenceStore = TrashCleanupPreferenceStore()
     ) {
         self.localization = localization
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: 460),
+            contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -21,13 +24,14 @@ final class ControlWindowController: NSWindowController {
         window.contentViewController = ControlViewController(
             localization: localization,
             model: model,
-            registrationController: registrationController
+            registrationController: registrationController,
+            trashCleanupStore: trashCleanupStore
         )
 
         super.init(window: window)
-        window.contentMinSize = NSSize(width: 680, height: 460)
-        window.contentMaxSize = NSSize(width: 680, height: 460)
-        window.setContentSize(NSSize(width: 680, height: 460))
+        window.contentMinSize = Self.contentSize
+        window.contentMaxSize = Self.contentSize
+        window.setContentSize(Self.contentSize)
         window.center()
         NotificationCenter.default.addObserver(
             self,
@@ -44,7 +48,7 @@ final class ControlWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
-        window?.setContentSize(NSSize(width: 680, height: 460))
+        window?.setContentSize(Self.contentSize)
         window?.center()
     }
 

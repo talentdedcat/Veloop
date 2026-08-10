@@ -7,6 +7,9 @@
 "behavior.title" = "行为";
 "behavior.startAtLogin" = "登录时启动";
 "behavior.previews" = "循环切换时显示内容预览";
+"trash.title" = "移到废纸篓时";
+"trash.preserve" = "保留历史记录和设置";
+"trash.purge" = "移除所有内容";
 "storage.title" = "历史与存储";
 "storage.historyLimit" = "历史数量上限";
 "storage.diskLimit" = "存储空间上限";

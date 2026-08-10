@@ -6,12 +6,17 @@ final class ControlViewController: NSViewController {
     private let localization: LocalizationController
     private let model: ControlViewModel
     private let registrationController: AgentRegistrationController
+    private let trashCleanupStore: TrashCleanupPreferenceStore
 
     private let statusLabel = NSTextField(labelWithString: "")
     private let statusDetailLabel = NSTextField(labelWithString: "")
     private let masterSwitch = NSSwitch()
     private let startAtLoginSwitch = NSSwitch()
     private let previewsSwitch = NSSwitch()
+    private lazy var trashCleanupControl = NSSegmentedControl(labels: [
+        localization.string("trash.preserve"),
+        localization.string("trash.purge"),
+    ], trackingMode: .selectOne, target: self, action: #selector(trashCleanupPolicyChanged))
     private let historyField = NSTextField()
     private let historyStepper = NSStepper()
     private let historyUnitLabel = NSTextField(labelWithString: "")
@@ -31,6 +36,7 @@ final class ControlViewController: NSViewController {
     private let behaviorTitle = NSTextField(labelWithString: "")
     private let startAtLoginLabel = NSTextField(labelWithString: "")
     private let previewsLabel = NSTextField(labelWithString: "")
+    private let trashCleanupLabel = NSTextField(labelWithString: "")
     private let storageTitle = NSTextField(labelWithString: "")
     private let historyLimitLabel = NSTextField(labelWithString: "")
     private let storageLimitLabel = NSTextField(labelWithString: "")
@@ -44,13 +50,15 @@ final class ControlViewController: NSViewController {
     init(
         localization: LocalizationController,
         model: ControlViewModel,
-        registrationController: AgentRegistrationController
+        registrationController: AgentRegistrationController,
+        trashCleanupStore: TrashCleanupPreferenceStore
     ) {
         self.localization = localization
         self.model = model
         self.registrationController = registrationController
+        self.trashCleanupStore = trashCleanupStore
         super.init(nibName: nil, bundle: nil)
-        preferredContentSize = NSSize(width: 680, height: 460)
+        preferredContentSize = ControlWindowController.contentSize
     }
 
     @available(*, unavailable)
@@ -59,7 +67,7 @@ final class ControlViewController: NSViewController {
     }
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 680, height: 460))
+        view = NSView(frame: NSRect(origin: .zero, size: ControlWindowController.contentSize))
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         buildInterface()
@@ -118,10 +126,16 @@ final class ControlViewController: NSViewController {
         append(behaviorTitle)
         let loginRow = labeledRow(startAtLoginLabel, control: startAtLoginSwitch)
         let previewRow = labeledRow(previewsLabel, control: previewsSwitch)
+        precondition(trashCleanupControl.segmentCount == 2)
+        trashCleanupControl.setWidth(210, forSegment: 0)
+        trashCleanupControl.setWidth(210, forSegment: 1)
+        let trashCleanupRow = labeledRow(trashCleanupLabel, control: trashCleanupControl)
         constrainHeight(loginRow, 42)
         constrainHeight(previewRow, 42)
+        constrainHeight(trashCleanupRow, 42)
         append(loginRow)
         append(previewRow)
+        append(trashCleanupRow)
         append(separator())
 
         configureSectionTitle(storageTitle)
@@ -210,7 +224,7 @@ final class ControlViewController: NSViewController {
             outer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             outer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             outer.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            outer.heightAnchor.constraint(equalToConstant: 408),
+            outer.heightAnchor.constraint(equalToConstant: 450),
         ])
     }
 
@@ -218,6 +232,9 @@ final class ControlViewController: NSViewController {
         behaviorTitle.stringValue = localization.string("behavior.title")
         startAtLoginLabel.stringValue = localization.string("behavior.startAtLogin")
         previewsLabel.stringValue = localization.string("behavior.previews")
+        trashCleanupLabel.stringValue = localization.string("trash.title")
+        trashCleanupControl.setLabel(localization.string("trash.preserve"), forSegment: 0)
+        trashCleanupControl.setLabel(localization.string("trash.purge"), forSegment: 1)
         storageTitle.stringValue = localization.string("storage.title")
         historyLimitLabel.stringValue = localization.string("storage.historyLimit")
         storageLimitLabel.stringValue = localization.string("storage.diskLimit")
@@ -262,6 +279,7 @@ final class ControlViewController: NSViewController {
         masterSwitch.state = state?.enabled == true ? .on : .off
         startAtLoginSwitch.state = registrationController.isStartAtLoginEnabled ? .on : .off
         previewsSwitch.state = state?.configuration.showContentPreviews == true ? .on : .off
+        trashCleanupControl.selectedSegment = trashCleanupStore.policy == .purgeUserData ? 1 : 0
         if historyField.currentEditor() == nil, let historyCount = state?.configuration.maximumHistoryCount {
             historyField.integerValue = historyCount
             historyStepper.maxValue = max(historyStepper.maxValue, Double(historyCount))
@@ -364,6 +382,12 @@ final class ControlViewController: NSViewController {
     @objc private func previewsChanged() {
         localErrorKey = nil
         Task { await model.update(ControlUpdate(showContentPreviews: previewsSwitch.state == .on)) }
+    }
+
+    @objc private func trashCleanupPolicyChanged() {
+        trashCleanupStore.policy = trashCleanupControl.selectedSegment == 1
+            ? .purgeUserData
+            : .preserveUserData
     }
 
     @objc private func historyLimitSubmitted() {

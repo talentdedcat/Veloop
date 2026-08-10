@@ -7,6 +7,9 @@
 "behavior.title" = "Behavior";
 "behavior.startAtLogin" = "Start at login";
 "behavior.previews" = "Show content previews while cycling";
+"trash.title" = "When moved to Trash";
+"trash.preserve" = "Preserve History and Settings";
+"trash.purge" = "Remove Everything";
 "storage.title" = "History & Storage";
 "storage.historyLimit" = "History limit";
 "storage.diskLimit" = "Storage limit";

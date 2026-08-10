@@ -2,6 +2,22 @@ import Foundation
 import XCTest
 
 final class PermissionUISourceContractTests: XCTestCase {
+    func testTrashCleanupSettingHasExactlyTwoLocalizedChoices() throws {
+        let controller = try text("Sources/App/ControlViewController.swift")
+        let english = try text("Sources/App/en.lproj/Localizable.strings")
+        let chinese = try text("Sources/App/zh-Hans.lproj/Localizable.strings")
+
+        XCTAssertTrue(controller.contains("NSSegmentedControl(labels:"))
+        XCTAssertTrue(controller.contains("localization.string(\"trash.preserve\")"))
+        XCTAssertTrue(controller.contains("localization.string(\"trash.purge\")"))
+        XCTAssertTrue(controller.contains("trashCleanupControl.segmentCount == 2"))
+        XCTAssertTrue(controller.contains("trashCleanupStore.policy ="))
+        for key in ["trash.title", "trash.preserve", "trash.purge"] {
+            XCTAssertTrue(english.contains("\"\(key)\" = "), "English is missing \(key)")
+            XCTAssertTrue(chinese.contains("\"\(key)\" = "), "Chinese is missing \(key)")
+        }
+    }
+
     func testPermissionRowsRenderGroupedFourStateModelWithoutNilToFalseFallback() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
         let render = try functionBody(named: "render", in: controller)
