@@ -78,7 +78,8 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(verifier.contains("com.veloop.app"))
         XCTAssertTrue(verifier.contains("com.veloop.service"))
         XCTAssertTrue(verifier.contains("com.talentdedcat.veloop.palette"))
-        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.1.2"))
+        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.1.3"))
+        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("\"4\""))
         XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("3"))
         XCTAssertTrue(verifier.contains("x86_64") && verifier.contains("arm64"))
         XCTAssertTrue(verifier.contains("codesign --verify --deep --strict"))
@@ -181,7 +182,7 @@ final class PackagingContractTests: XCTestCase {
         ))
     }
 
-    func testPublicReleaseUsesVersion012AndBuildThree() throws {
+    func testPublicReleaseUsesVersion013AndBuildFour() throws {
         for path in [
             "Configuration/VeloopApp-Info.plist",
             "Configuration/VeloopAgent-Info.plist",
@@ -192,8 +193,8 @@ final class PackagingContractTests: XCTestCase {
             let plist = try XCTUnwrap(
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.1.2")
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "3")
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.1.3")
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "4")
         }
     }
 

@@ -3,11 +3,11 @@ import Foundation
 import XCTest
 
 final class ReleaseMetadataTests: XCTestCase {
-    func testPublicVersionIsZeroOneTwo() {
-        XCTAssertEqual(AppConstants.version, "0.1.2")
+    func testPublicVersionIsZeroOneThree() {
+        XCTAssertEqual(AppConstants.version, "0.1.3")
     }
 
-    func testTrackedBundleMetadataUsesVersionZeroOneTwoAndBuildThree() throws {
+    func testTrackedBundleMetadataUsesVersionZeroOneThreeAndBuildFour() throws {
         for path in [
             "Configuration/VeloopApp-Info.plist",
             "Configuration/VeloopAgent-Info.plist",
@@ -18,14 +18,14 @@ final class ReleaseMetadataTests: XCTestCase {
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
 
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.1.2", path)
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "3", path)
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.1.3", path)
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "4", path)
         }
     }
 
-    func testCaskUsesVersionZeroOneTwoAndRetainsARealChecksum() throws {
+    func testCaskUsesVersionZeroOneThreeAndRetainsARealChecksum() throws {
         let cask = try text("Casks/veloop.rb")
-        XCTAssertTrue(cask.contains("version \"0.1.2\""))
+        XCTAssertTrue(cask.contains("version \"0.1.3\""))
         XCTAssertNotNil(
             cask.range(of: #"sha256 "[0-9a-f]{64}""#, options: .regularExpression)
         )
@@ -35,8 +35,8 @@ final class ReleaseMetadataTests: XCTestCase {
         let readme = try text("README.md")
 
         for requiredText in [
-            "release-v0.1.2",
-            "Veloop-0.1.2-universal.dmg",
+            "release-v0.1.3",
+            "Veloop-0.1.3-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             #"<table align="center">"#,
@@ -58,8 +58,8 @@ final class ReleaseMetadataTests: XCTestCase {
         let readme = try text("Docs/README.zh-CN.md")
 
         for requiredText in [
-            "release-v0.1.2",
-            "Veloop-0.1.2-universal.dmg",
+            "release-v0.1.3",
+            "Veloop-0.1.3-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             #"<table align="center">"#,
