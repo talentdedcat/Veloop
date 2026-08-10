@@ -22,13 +22,22 @@ final class PublicTreeContractTests: XCTestCase {
         for path in [
             "Sources/Core/Configuration/Configuration.swift",
             "Sources/Core/Configuration/ConfigurationStore.swift",
-            "Configuration/VeloopAgent-Info.plist",
             "Configuration/VeloopApp-Info.plist",
             "Configuration/VeloopPalette-Info.plist",
         ] {
             XCTAssertTrue(
                 FileManager.default.fileExists(atPath: root.appendingPathComponent(path).path),
                 "\(path) must exist in the public tree"
+            )
+        }
+
+        for obsoletePath in [
+            "Configuration/VeloopAgent-Info.plist",
+            "Sources/Agent",
+        ] {
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: root.appendingPathComponent(obsoletePath).path),
+                "\(obsoletePath) must not remain in the public tree"
             )
         }
     }
