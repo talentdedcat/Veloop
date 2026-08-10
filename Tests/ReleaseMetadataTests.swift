@@ -3,14 +3,13 @@ import Foundation
 import XCTest
 
 final class ReleaseMetadataTests: XCTestCase {
-    func testPublicVersionIsZeroOneThree() {
-        XCTAssertEqual(AppConstants.version, "0.1.3")
+    func testPublicVersionIsZeroTwoZero() {
+        XCTAssertEqual(AppConstants.version, "0.2.0")
     }
 
-    func testTrackedBundleMetadataUsesVersionZeroOneThreeAndBuildFour() throws {
+    func testTrackedBundleMetadataUsesVersionZeroTwoZeroAndBuildFive() throws {
         for path in [
             "Configuration/VeloopApp-Info.plist",
-            "Configuration/VeloopAgent-Info.plist",
             "Configuration/VeloopPalette-Info.plist",
         ] {
             let data = try Data(contentsOf: repositoryRoot.appendingPathComponent(path))
@@ -18,14 +17,14 @@ final class ReleaseMetadataTests: XCTestCase {
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
 
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.1.3", path)
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "4", path)
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.0", path)
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "5", path)
         }
     }
 
-    func testCaskUsesVersionZeroOneThreeAndRetainsARealChecksum() throws {
+    func testCaskUsesVersionZeroTwoZeroAndRetainsARealChecksum() throws {
         let cask = try text("Casks/veloop.rb")
-        XCTAssertTrue(cask.contains("version \"0.1.3\""))
+        XCTAssertTrue(cask.contains("version \"0.2.0\""))
         XCTAssertNotNil(
             cask.range(of: #"sha256 "[0-9a-f]{64}""#, options: .regularExpression)
         )
@@ -35,21 +34,21 @@ final class ReleaseMetadataTests: XCTestCase {
         let readme = try text("README.md")
 
         for requiredText in [
-            "release-v0.1.3",
-            "Veloop-0.1.3-universal.dmg",
+            "release-v0.2.0",
+            "Veloop-0.2.0-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             #"<table align="center">"#,
-            "Permission status is checked live by the background Agent.",
-            #"“Checking” and “Agent unavailable” are distinct from “Missing.”"#,
-            "On launch and whenever the control app becomes active, Veloop restarts the currently installed Agent and refreshes permission status.",
-            "This also covers permission changes made by opening System Settings independently.",
-            "An ordinary launch does not prompt for permissions.",
-            "Use the permission buttons only when the corresponding permission is missing.",
-            "/Applications/Veloop Agent.app",
-            "~/Applications/Veloop Agent.app",
-            "Veloop preserves this installed Agent during upgrades so an existing permission grant remains usable",
-            "The first migration to v0.1.3 requires adding the new persistent Agent once",
+            "Veloop.app is the only permission-bearing Veloop application.",
+            "No separate Veloop Agent.app is installed.",
+            "a changed ad-hoc binary has a new code hash",
+            "clears stale Veloop permission records",
+            "Re-enable both permissions once after an ad-hoc binary update",
+            "queries the healthy Agent first without restarting it",
+            "reflected as soon as the control app becomes active",
+            "Preserve History and Settings",
+            "Remove Everything",
+            "always performs a complete purge",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
@@ -61,21 +60,21 @@ final class ReleaseMetadataTests: XCTestCase {
         let readme = try text("Docs/README.zh-CN.md")
 
         for requiredText in [
-            "release-v0.1.3",
-            "Veloop-0.1.3-universal.dmg",
+            "release-v0.2.0",
+            "Veloop-0.2.0-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             #"<table align="center">"#,
-            "权限状态由后台 Agent 实时检查。",
-            "“检查中”和“Agent 不可用”都不同于“缺失”。",
-            "启动时以及控制应用每次重新激活时，Veloop 都会重启当前安装的 Agent 并刷新权限状态。",
-            "这也涵盖用户自行打开“系统设置”所做的权限更改。",
-            "普通启动不会请求权限。",
-            "仅在相应权限缺失时使用权限按钮。",
-            "/Applications/Veloop Agent.app",
-            "~/Applications/Veloop Agent.app",
-            "升级时 Veloop 会保留这份已安装 Agent，因此已有权限可以继续使用",
-            "首次迁移到 v0.1.3 时，需要添加一次新的持久 Agent",
+            "Veloop.app 是唯一承载权限的 Veloop 应用。",
+            "不会再安装独立的 Veloop Agent.app。",
+            "ad-hoc 二进制发生变化时，代码哈希也会变化",
+            "清除旧的 Veloop 权限记录",
+            "ad-hoc 二进制更新后重新启用一次这两项权限",
+            "优先查询健康的 Agent，不会先重启",
+            "控制应用重新激活时立即反映",
+            "保留历史记录和设置",
+            "移除所有内容",
+            "始终执行彻底清理",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
@@ -83,13 +82,14 @@ final class ReleaseMetadataTests: XCTestCase {
         XCTAssertFalse(readme.contains("可复现的公开构建"))
     }
 
-    func testSourceGuideDescribesOnlyTheStateRefreshAsBounded() throws {
+    func testSourceGuideDescribesSingleIdentityAndImmediateRefresh() throws {
         let sourceGuide = try text("Sources/README.md")
 
         XCTAssertTrue(sourceGuide.contains(
-            "Launch and every control-app activation trigger an Agent restart followed by a bounded state refresh"
+            "The same `Veloop` executable runs in `--agent` mode"
         ))
-        XCTAssertFalse(sourceGuide.contains("bounded Agent restart"))
+        XCTAssertTrue(sourceGuide.contains("one bounded state request before recovery"))
+        XCTAssertFalse(sourceGuide.contains("copies the signed embedded Agent"))
     }
 
     private var repositoryRoot: URL {

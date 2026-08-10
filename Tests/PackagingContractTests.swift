@@ -60,13 +60,15 @@ final class PackagingContractTests: XCTestCase {
         let script = try text("Packaging/build-release.sh")
 
         let cli = try XCTUnwrap(script.range(of: "codesign --force --options runtime --sign - \"$cli\""))
+        let watcher = try XCTUnwrap(script.range(of: "codesign --force --options runtime --sign - \"$watcher\""))
         let palette = try XCTUnwrap(script.range(of: "codesign --force --options runtime --sign - \"$palette\""))
-        let agent = try XCTUnwrap(script.range(of: "codesign --force --options runtime --sign - \"$agent\""))
         let app = try XCTUnwrap(script.range(of: "codesign --force --options runtime --sign - \"$staged_app\""))
 
-        XCTAssertLessThan(cli.lowerBound, palette.lowerBound)
-        XCTAssertLessThan(palette.lowerBound, agent.lowerBound)
-        XCTAssertLessThan(agent.lowerBound, app.lowerBound)
+        XCTAssertLessThan(cli.lowerBound, watcher.lowerBound)
+        XCTAssertLessThan(watcher.lowerBound, palette.lowerBound)
+        XCTAssertLessThan(palette.lowerBound, app.lowerBound)
+        XCTAssertFalse(script.contains("VeloopAgent"))
+        XCTAssertFalse(script.contains("LoginItems"))
         XCTAssertFalse(script.contains("--requirements"))
         XCTAssertTrue(script.contains("codesign --verify --deep --strict \"$staged_app\""))
     }
@@ -75,18 +77,17 @@ final class PackagingContractTests: XCTestCase {
         let verifier = try text("Packaging/verify-dmg.sh")
 
         XCTAssertTrue(verifier.contains("hdiutil attach -readonly -nobrowse"))
-        XCTAssertTrue(verifier.contains("Contents/Library/LoginItems/Veloop.app"))
+        XCTAssertTrue(verifier.contains("Contents/Resources/VeloopUninstallWatcher"))
         XCTAssertTrue(verifier.contains("Contents/Library/Input Methods/VeloopPalette.app"))
         XCTAssertTrue(verifier.contains("Contents/Resources/veloopctl"))
         XCTAssertTrue(verifier.contains("com.veloop.app"))
-        XCTAssertTrue(verifier.contains("com.veloop.service"))
         XCTAssertTrue(verifier.contains("com.talentdedcat.veloop.palette"))
-        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.1.3"))
-        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("\"4\""))
-        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("3"))
+        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.2.0"))
+        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("\"5\""))
         XCTAssertTrue(verifier.contains("x86_64") && verifier.contains("arm64"))
         XCTAssertTrue(verifier.contains("codesign --verify --deep --strict"))
-        XCTAssertTrue(verifier.contains("VeloopService.app"))
+        XCTAssertTrue(verifier.contains("Veloop Agent.app"))
+        XCTAssertTrue(verifier.contains("LoginItems"))
     }
 
     func testDMGVerifierNeverExecutesMountedCodeOrMutatesUserState() throws {
@@ -98,8 +99,8 @@ final class PackagingContractTests: XCTestCase {
 
         for mountedExecutable in [
             "\"$cli\"",
+            "\"$watcher\"",
             "\"$staged_app/Contents/MacOS/Veloop\"",
-            "\"$agent/Contents/MacOS/Veloop\"",
             "\"$palette/Contents/MacOS/VeloopPalette\"",
         ] {
             XCTAssertFalse(
@@ -145,40 +146,30 @@ final class PackagingContractTests: XCTestCase {
         }
     }
 
-    func testEmbeddedAgentUsesTheUserFacingVeloopIdentity() throws {
-        let plistURL = repositoryRoot.appendingPathComponent("Configuration/VeloopAgent-Info.plist")
-        let data = try Data(contentsOf: plistURL)
-        let plist = try XCTUnwrap(
-            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
-        )
+    func testOnlyMainApplicationOwnsVeloopPermissionIdentity() throws {
         let registration = try text("Sources/Core/Agent/AgentRegistrationController.swift")
         let constants = try text("Sources/Core/Support/AppConstants.swift")
         let verifier = try text("Packaging/verify-dmg.sh")
 
-        XCTAssertEqual(plist["CFBundleName"] as? String, "Veloop")
-        XCTAssertEqual(plist["CFBundleDisplayName"] as? String, "Veloop")
-        XCTAssertEqual(plist["CFBundleIconFile"] as? String, "Veloop.icns")
-        XCTAssertTrue(exists("Sources/Agent/Veloop.icns"))
-        XCTAssertTrue(registration.contains("label = \"com.veloop.service\""))
-        XCTAssertTrue(constants.contains("bundleIdentifier = \"com.veloop.service\""))
-        XCTAssertTrue(verifier.contains("com.veloop.service"))
-        XCTAssertTrue(verifier.contains("CFBundleDisplayName"))
-        XCTAssertTrue(verifier.contains("Veloop.icns"))
+        XCTAssertTrue(constants.contains("bundleIdentifier = \"com.veloop.app\""))
+        XCTAssertTrue(registration.contains("Contents/MacOS/Veloop"))
+        XCTAssertTrue(registration.contains("\"--agent\""))
+        XCTAssertFalse(registration.contains("Veloop Agent.app"))
+        XCTAssertFalse(exists("Sources/Agent"))
+        XCTAssertFalse(exists("Configuration/VeloopAgent-Info.plist"))
+        XCTAssertTrue(verifier.contains("bundle_count"))
+        XCTAssertTrue(verifier.contains("com.veloop.app"))
     }
 
-    func testEmbeddedServiceBundleAndExecutableAreNamedVeloop() throws {
+    func testPlainWatcherIsEmbeddedWithoutAnApplicationBundle() throws {
         let buildScript = try text("Packaging/build-release.sh")
         let verifier = try text("Packaging/verify-dmg.sh")
-        let expectedBundlePath = "Contents/Library/LoginItems/Veloop.app"
-        let expectedExecutablePath = "Contents/MacOS/Veloop"
 
-        XCTAssertTrue(buildScript.contains("\(expectedBundlePath)/\(expectedExecutablePath)"))
-        XCTAssertTrue(verifier.contains("\(expectedBundlePath)"))
-        XCTAssertTrue(verifier.contains("\(expectedExecutablePath)"))
-        XCTAssertFalse(buildScript.contains("LoginItems/VeloopAgent.app"))
-        XCTAssertFalse(verifier.contains("LoginItems/VeloopAgent.app"))
-        XCTAssertFalse(buildScript.contains("VeloopService.app"))
-        XCTAssertTrue(verifier.contains("VeloopService.app"))
+        XCTAssertTrue(buildScript.contains("Contents/Resources/VeloopUninstallWatcher"))
+        XCTAssertTrue(buildScript.contains("$bin_dir/VeloopUninstallWatcher"))
+        XCTAssertTrue(verifier.contains("Contents/Resources/VeloopUninstallWatcher"))
+        XCTAssertFalse(buildScript.contains("Contents/Library/LoginItems"))
+        XCTAssertFalse(buildScript.contains("VeloopAgent"))
     }
 
     func testStorageStepperUsesTheOneMegabyteContract() throws {
@@ -189,10 +180,9 @@ final class PackagingContractTests: XCTestCase {
         ))
     }
 
-    func testPublicReleaseUsesVersion013AndBuildFour() throws {
+    func testPublicReleaseUsesVersion020AndBuildFive() throws {
         for path in [
             "Configuration/VeloopApp-Info.plist",
-            "Configuration/VeloopAgent-Info.plist",
             "Configuration/VeloopPalette-Info.plist",
         ] {
             let plistURL = repositoryRoot.appendingPathComponent(path)
@@ -200,8 +190,8 @@ final class PackagingContractTests: XCTestCase {
             let plist = try XCTUnwrap(
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.1.3")
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "4")
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.0")
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "5")
         }
     }
 

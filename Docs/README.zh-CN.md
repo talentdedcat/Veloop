@@ -6,7 +6,7 @@
     <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Universal arm64 与 x86_64" src="https://img.shields.io/badge/Universal-arm64_%2B_x86__64-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-f05237?style=flat&logo=swift&logoColor=white">
-    <img alt="版本 v0.1.3" src="https://img.shields.io/badge/release-v0.1.3-1683c7?style=flat">
+    <img alt="版本 v0.2.0" src="https://img.shields.io/badge/release-v0.2.0-1683c7?style=flat">
     <img alt="MIT 许可证" src="https://img.shields.io/badge/license-MIT-5b9d2f?style=flat">
   </p>
   <p><a href="../README.md">English</a> · 简体中文</p>
@@ -23,7 +23,7 @@ Veloop 是一款原生 macOS 剪贴板历史应用。它完整保存可物化读
 - **本地优先：** Veloop 没有云同步、分析、崩溃上传、网络监听或自动远程下载。
 - **安静驻留后台：** Agent 没有 Dock 图标、菜单栏项目、通知或常驻浮层。
 - **容量有界且行为可预期：** 历史默认保留 100 条、100 MB，并通过持久化 LRU 淘汰最久未使用且未受保护的快照。
-- **原生支持现代 Mac：** App、Agent、Palette 与 CLI 均以 Universal `arm64 + x86_64` 二进制交付，不依赖第三方运行时。
+- **原生支持现代 Mac：** App、普通卸载监视器、Palette 与 CLI 均以 Universal `arm64 + x86_64` 二进制交付，不依赖第三方运行时。
 
 ## 安装
 
@@ -36,7 +36,7 @@ brew install --cask Veloop
 ```
 
 > [!IMPORTANT]
-> **首次安装：** v0.1.3 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对通过本仓库安装的 Veloop 解除隔离。首次启动前请运行：
+> **首次安装：** v0.2.0 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对通过本仓库安装的 Veloop 解除隔离。首次启动前请运行：
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -45,10 +45,10 @@ brew install --cask Veloop
 
 ### DMG
 
-[下载 `Veloop-0.1.3-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.3/Veloop-0.1.3-universal.dmg)，打开后将 `Veloop.app` 拖入“应用程序”。
+[下载 `Veloop-0.2.0-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.2.0/Veloop-0.2.0-universal.dmg)，打开后将 `Veloop.app` 拖入“应用程序”。
 
 > [!IMPORTANT]
-> **首次安装：** v0.1.3 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对从本仓库下载的 DMG 中安装的 Veloop 解除隔离。将 Veloop 复制到“应用程序”后、首次启动前请运行：
+> **首次安装：** v0.2.0 使用 ad-hoc 签名，尚未经过 Apple 公证。仅对从本仓库下载的 DMG 中安装的 Veloop 解除隔离。将 Veloop 复制到“应用程序”后、首次启动前请运行：
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -95,9 +95,17 @@ brew install --cask Veloop
 
 权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。普通启动不会请求权限。仅在相应权限缺失时使用权限按钮。
 
-首次启动时，如果目录可写，Veloop 会将已签名的后台 Agent 复制到 `/Applications/Veloop Agent.app`；非管理员账户会回退到 `~/Applications/Veloop Agent.app`。请在每个隐私权限页面点击“+”，选择这份持久 Agent。首次迁移到 v0.1.3 时，需要添加一次新的持久 Agent，因为 macOS 无法在不同的 ad-hoc 代码哈希之间转移权限。
+Veloop.app 是唯一承载权限的 Veloop 应用。不会再安装独立的 Veloop Agent.app。请在两个隐私权限页面中添加或启用 `/Applications/Veloop.app`；后台进程使用同一个可执行文件的 `--agent` 模式，因此权限身份与显示名称都保持为 Veloop。
 
-升级时 Veloop 会保留这份已安装 Agent，因此已有权限可以继续使用。启动时以及控制应用每次重新激活时，Veloop 都会重启当前安装的 Agent 并刷新权限状态。这也涵盖用户自行打开“系统设置”所做的权限更改。
+ad-hoc 二进制发生变化时，代码哈希也会变化，macOS 无法把旧授权安全地转移给新二进制。Veloop 检测到已安装可执行文件发生变化时，会在启动新 Agent 前清除旧的 Veloop 权限记录。ad-hoc 二进制更新后重新启用一次这两项权限，即可消除“旧 Veloop 条目显示已开启、当前二进制却被拒绝”的错误状态。
+
+启动与激活时，Veloop 优先查询健康的 Agent，不会先重启。socket 每个阶段的截止时间为 200 ms，仅在查询失败后执行一次恢复。用户直接在“系统设置”中修改权限后，会在控制应用重新激活时立即反映。
+
+## 卸载行为
+
+“移到废纸篓时”提供两个选择。默认的“保留历史记录和设置”会在 `/Applications/Veloop.app` 被移到废纸篓后移除权限、LaunchAgent、Palette、运行时文件和卸载监视器，但保留剪贴板历史与设置。“移除所有内容”还会删除全部 Veloop 历史、设置、偏好、缓存、保存状态和 WebKit 数据。
+
+`brew uninstall --cask veloop` 始终执行彻底清理，不受废纸篓设置影响。`brew uninstall --zap --cask veloop` 的最终状态相同。对应的直接命令是 `veloopctl uninstall --purge`。
 
 ## 控制应用
 
@@ -157,6 +165,7 @@ veloopctl doctor
 veloopctl config get
 veloopctl open-data-directory
 veloopctl restart
+veloopctl uninstall --purge
 veloopctl version
 ```
 
@@ -166,8 +175,8 @@ Agent 与 CLI 通过权限为 `0600` 的 Unix-domain socket 通信，不监听 T
 
 ```text
 Sources/App/             控制应用与本地化
-Sources/Agent/           内嵌后台 Agent 入口
 Sources/Core/            捕获、历史、按键、浮层、存储与 IPC
+Sources/UninstallWatcher/ 普通事件驱动卸载监视器入口
 Sources/Veloopctl/       内嵌 veloopctl 入口
 Sources/Palette/         附加式 InputMethodKit 光标桥接组件
 Tests/                   行为与打包契约

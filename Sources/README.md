@@ -6,17 +6,17 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 
 | Module | Responsibility |
 | --- | --- |
-| `Sources/App/` | Control app lifecycle, Agent registration and restart coordination, AppKit settings UI, localization, permission presentation and links, and Palette installation. |
-| `Sources/Agent/` | Entry point for the embedded background Agent and assembly of the long-running runtime that owns live permission checks. |
+| `Sources/App/` | Control UI plus the `--agent` entry mode, AppKit settings, localization, permission presentation, and Palette/watcher installation. |
 | `Sources/Core/` | Shared static Swift module for clipboard capture, history, configuration, global input, Focus Stack presentation, storage, local IPC, and system wrappers. |
 | `Sources/Palette/` | Minimal InputMethodKit bridge that retains the active `IMKTextInput` session and answers bounded local caret queries. |
+| `Sources/UninstallWatcher/` | Plain event-driven process that detects removal of the canonical installed app and invokes exact cleanup. |
 | `Sources/Veloopctl/` | Thin executable entry point for the local `veloopctl` command surface. |
 
 `Veloopctl` is the thin `veloopctl` entry point. Argument parsing, bounded Unix-socket IPC, and privacy-safe output remain in Core so they can be exercised independently.
 
 The Core module is shared by the shipped executables and the XCTest contracts. System API ownership stays in focused wrappers so capture, retention, presentation, and control logic remain independently testable.
 
-The control app coordinates Agent lifecycle through `AgentRegistrationController` and reads permission status over Agent IPC. On first launch, registration copies the signed embedded Agent to `/Applications/Veloop Agent.app` when writable, falling back to `~/Applications/Veloop Agent.app`; later releases preserve either persistent bundle so its ad-hoc code hash and TCC grants remain stable. Launch and every control-app activation trigger an Agent restart followed by a bounded state refresh; permission truth remains owned by the running Agent.
+The same `Veloop` executable runs in `--agent` mode, so `/Applications/Veloop.app` is the only permission-bearing application identity. The control app performs one bounded state request before recovery and never restarts a healthy Agent merely to refresh permission state. A changed ad-hoc executable hash triggers targeted stale-permission cleanup before the new Agent starts.
 
 ## Runtime flow
 

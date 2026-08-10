@@ -6,7 +6,7 @@
     <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Universal arm64 and x86_64" src="https://img.shields.io/badge/Universal-arm64_%2B_x86__64-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-f05237?style=flat&logo=swift&logoColor=white">
-    <img alt="release v0.1.3" src="https://img.shields.io/badge/release-v0.1.3-1683c7?style=flat">
+    <img alt="release v0.2.0" src="https://img.shields.io/badge/release-v0.2.0-1683c7?style=flat">
     <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5b9d2f?style=flat">
   </p>
   <p>English · <a href="Docs/README.zh-CN.md">简体中文</a></p>
@@ -23,7 +23,7 @@ Veloop is a native clipboard history app for macOS. It preserves complete, mater
 - **Local by design:** Veloop has no cloud sync, analytics, crash upload, network listener, or automatic remote downloads.
 - **Quiet in the background:** the Agent has no Dock icon, menu bar item, notification, or persistent overlay.
 - **Bounded and predictable:** history defaults to 100 snapshots and 100 MB, with persistent LRU eviction for the least recently used unprotected snapshot.
-- **Native on modern Macs:** the App, Agent, Palette, and CLI ship as Universal `arm64 + x86_64` binaries with no third-party runtime dependency.
+- **Native on modern Macs:** the App, plain uninstall watcher, Palette, and CLI ship as Universal `arm64 + x86_64` binaries with no third-party runtime dependency.
 
 ## Install
 
@@ -36,7 +36,7 @@ brew install --cask Veloop
 ```
 
 > [!IMPORTANT]
-> **First installation:** v0.1.3 is ad-hoc signed and not notarized. Only remove quarantine from Veloop installed through this repository. Before the first launch, run:
+> **First installation:** v0.2.0 is ad-hoc signed and not notarized. Only remove quarantine from Veloop installed through this repository. Before the first launch, run:
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -45,10 +45,10 @@ brew install --cask Veloop
 
 ### DMG
 
-[Download `Veloop-0.1.3-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.1.3/Veloop-0.1.3-universal.dmg), open it, and drag `Veloop.app` to `Applications`.
+[Download `Veloop-0.2.0-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.2.0/Veloop-0.2.0-universal.dmg), open it, and drag `Veloop.app` to `Applications`.
 
 > [!IMPORTANT]
-> **First installation:** v0.1.3 is ad-hoc signed and not notarized. Only remove quarantine from the DMG downloaded from this repository. After copying Veloop to Applications and before the first launch, run:
+> **First installation:** v0.2.0 is ad-hoc signed and not notarized. Only remove quarantine from the DMG downloaded from this repository. After copying Veloop to Applications and before the first launch, run:
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Veloop.app
@@ -95,9 +95,17 @@ Caret positioning does not use Accessibility permission. Clipboard capture conti
 
 Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” An ordinary launch does not prompt for permissions. Use the permission buttons only when the corresponding permission is missing.
 
-On first launch, Veloop copies its signed background Agent to `/Applications/Veloop Agent.app` when that directory is writable, with `~/Applications/Veloop Agent.app` as the fallback for non-administrator accounts. In each privacy pane, use the **+** button and choose that persistent Agent. The first migration to v0.1.3 requires adding the new persistent Agent once because macOS cannot transfer a grant between different ad-hoc code hashes.
+Veloop.app is the only permission-bearing Veloop application. No separate Veloop Agent.app is installed. In each privacy pane, add or enable `/Applications/Veloop.app`; the background process runs the same executable in `--agent` mode and therefore uses the same application identity and display name.
 
-Veloop preserves this installed Agent during upgrades so an existing permission grant remains usable. On launch and whenever the control app becomes active, Veloop restarts the currently installed Agent and refreshes permission status. This also covers permission changes made by opening System Settings independently.
+Because a changed ad-hoc binary has a new code hash, macOS cannot safely transfer the old grant to that binary. When Veloop detects a changed installed executable, it clears stale Veloop permission records before starting the new Agent. Re-enable both permissions once after an ad-hoc binary update; this removes the misleading case where an old Veloop row appears enabled but the current binary is denied.
+
+On launch and activation, Veloop queries the healthy Agent first without restarting it. Socket operations have a 200 ms per-phase deadline, and recovery runs only after that query fails. Permission changes made directly in System Settings are reflected as soon as the control app becomes active.
+
+## Uninstall behavior
+
+The **When moved to Trash** setting has two choices. **Preserve History and Settings** is the default: moving `/Applications/Veloop.app` to Trash removes permissions, LaunchAgents, the Palette, runtime files, and the uninstall watcher while retaining clipboard history and settings. **Remove Everything** also deletes all Veloop history, settings, preferences, caches, saved state, and WebKit data.
+
+`brew uninstall --cask veloop` always performs a complete purge, regardless of the Trash setting. `brew uninstall --zap --cask veloop` has the same empty final state. The equivalent direct command is `veloopctl uninstall --purge`.
 
 ## Control app
 
@@ -157,6 +165,7 @@ veloopctl doctor
 veloopctl config get
 veloopctl open-data-directory
 veloopctl restart
+veloopctl uninstall --purge
 veloopctl version
 ```
 
@@ -166,8 +175,8 @@ The Agent and CLI communicate through a mode-`0600` Unix-domain socket and never
 
 ```text
 Sources/App/             control app and localization
-Sources/Agent/           embedded background Agent entry point
 Sources/Core/            capture, history, input, overlay, storage, and IPC
+Sources/UninstallWatcher/ plain event-driven uninstall watcher entry point
 Sources/Veloopctl/       embedded veloopctl entry point
 Sources/Palette/         additive InputMethodKit caret bridge
 Tests/                   behavioral and packaging contracts
