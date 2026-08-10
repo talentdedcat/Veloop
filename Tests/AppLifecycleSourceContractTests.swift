@@ -164,26 +164,17 @@ final class AppLifecycleSourceContractTests: XCTestCase {
     func testLaunchAgentAndTrackedPlistsKeepStableIdentity() throws {
         let registration = try text("Sources/Core/Agent/AgentRegistrationController.swift")
         let appPlist = try plist("Configuration/VeloopApp-Info.plist")
-        let agentPlist = try plist("Configuration/VeloopAgent-Info.plist")
 
-        XCTAssertTrue(registration.contains("label = \"com.veloop.service\""))
-        XCTAssertTrue(registration.contains("Contents/Library/LoginItems"))
-        XCTAssertTrue(registration.contains("appendingPathComponent(\"Veloop.app\")"))
-        XCTAssertTrue(registration.contains("/Applications/Veloop Agent.app"))
-        XCTAssertTrue(registration.contains("Applications/Veloop Agent.app"))
-        XCTAssertTrue(registration.contains("ensurePersistentAgentInstalled()"))
-        XCTAssertTrue(registration.contains(
-            "fileManager.fileExists(atPath: installedAgentBundleURL.path)"
-        ))
-        XCTAssertFalse(registration.contains("appendingPathComponent(\"VeloopService.app\")"))
+        XCTAssertTrue(registration.contains("/Applications/Veloop.app"))
         XCTAssertTrue(registration.contains("appendingPathComponent(\"Contents/MacOS/Veloop\")"))
-        XCTAssertTrue(registration.contains("\"AssociatedBundleIdentifiers\": [\"com.veloop.app\"]"))
+        XCTAssertTrue(registration.contains("[agentExecutableURL.path, \"--agent\"]"))
+        XCTAssertFalse(registration.contains("Contents/Library/LoginItems"))
+        XCTAssertFalse(registration.contains("Veloop Agent.app"))
+        XCTAssertFalse(registration.contains("ensurePersistentAgentInstalled"))
         XCTAssertEqual(appPlist["CFBundleIdentifier"] as? String, "com.veloop.app")
         XCTAssertEqual(appPlist["CFBundleExecutable"] as? String, "Veloop")
         XCTAssertEqual(appPlist["CFBundleDisplayName"] as? String, "Veloop")
-        XCTAssertEqual(agentPlist["CFBundleIdentifier"] as? String, "com.veloop.service")
-        XCTAssertEqual(agentPlist["CFBundleExecutable"] as? String, "Veloop")
-        XCTAssertEqual(agentPlist["CFBundleDisplayName"] as? String, "Veloop")
+        XCTAssertFalse(exists("Configuration/VeloopAgent-Info.plist"))
         XCTAssertFalse(exists("Sources/App/AgentRegistrationController.swift"))
     }
 

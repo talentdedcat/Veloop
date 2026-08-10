@@ -8,6 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         subsystem: "com.veloop.app",
         category: "palette-install"
     )
+    private static let migrationLogger = Logger(
+        subsystem: "com.veloop.app",
+        category: "permission-identity-migration"
+    )
 
     private let paletteInputSourceInstaller = PaletteInputSourceInstaller()
     private let agentRegistrationController = AgentRegistrationController()
@@ -16,6 +20,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var viewModel: ControlViewModel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        do {
+            let cleanupPaths = VeloopCleanupPaths.userDefault()
+            let cleanupController = VeloopCleanupController.live(paths: cleanupPaths)
+            let migrator = PermissionIdentityMigrator(
+                executableURL: URL(
+                    fileURLWithPath: "/Applications/Veloop.app/Contents/MacOS/Veloop"
+                ),
+                receiptURL: cleanupPaths.permissionIdentityReceipt,
+                cleanup: {
+                    try cleanupController.cleanup(
+                        scope: .preserveUserData,
+                        includeWatcher: false
+                    )
+                }
+            )
+            try migrator.migrateIfNeeded()
+        } catch {
+            let errorType = String(reflecting: type(of: error))
+            Self.migrationLogger.error(
+                "Permission identity migration failed type=\(errorType, privacy: .public)"
+            )
+            NSApplication.shared.terminate(nil)
+            return
+        }
+
         ensurePaletteInstalled()
 
         let agent: AgentControlling

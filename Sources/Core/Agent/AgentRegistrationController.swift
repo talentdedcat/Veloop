@@ -1,21 +1,17 @@
 import Foundation
 import ServiceManagement
 
-// The lock serializes every lifecycle and preference operation that touches the
-// shared defaults, filesystem, or launchctl collaborators.
 public final class AgentRegistrationController: AgentLifecycleControlling, @unchecked Sendable {
     typealias Launchctl = @Sendable ([String]) throws -> Int32
     typealias UnregisterLegacyService = @Sendable () throws -> Void
 
-    private static let label = "com.veloop.service"
     private static let desiredRegistrationKey = "veloop.startAtLogin"
     private static let legacyMigrationKey = "veloop.didMigrateLegacyLoginItem"
 
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let launchAgentURL: URL
-    private let embeddedAgentBundleURL: URL
-    private let installedAgentBundleURL: URL
+    private let applicationBundleURL: URL
     private let agentExecutableURL: URL
     private let currentBuild: String
     private let unregisterLegacyService: UnregisterLegacyService
@@ -31,8 +27,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             defaults: .standard,
             fileManager: .default,
             launchAgentURL: nil,
-            embeddedAgentBundleURL: nil,
-            installedAgentBundleURL: nil,
+            applicationBundleURL: nil,
             currentBuild: nil,
             unregisterLegacyService: {
                 try AgentRegistrationController.unregisterLegacyLoginItem()
@@ -47,23 +42,19 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         defaults: UserDefaults = .standard,
         fileManager: FileManager = .default,
         launchAgentURL: URL? = nil,
-        embeddedAgentBundleURL: URL? = nil,
-        installedAgentBundleURL: URL? = nil,
+        applicationBundleURL: URL? = nil,
         currentBuild: String? = nil,
         unregisterLegacyService: @escaping UnregisterLegacyService,
         launchctl: @escaping Launchctl
     ) {
-        let embeddedBundleURL = embeddedAgentBundleURL ?? Self.embeddedAgentBundleURL()
-        let installedBundleURL = installedAgentBundleURL
-            ?? Self.defaultInstalledAgentBundleURL(fileManager: fileManager)
+        let appBundle = applicationBundleURL
+            ?? URL(fileURLWithPath: "/Applications/Veloop.app", isDirectory: true)
         self.defaults = defaults
         self.fileManager = fileManager
         self.launchAgentURL = launchAgentURL ?? fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/com.veloop.service.plist")
-        self.embeddedAgentBundleURL = embeddedBundleURL
-        self.installedAgentBundleURL = installedBundleURL
-        self.agentExecutableURL = installedBundleURL
-            .appendingPathComponent("Contents/MacOS/Veloop")
+        self.applicationBundleURL = appBundle
+        agentExecutableURL = appBundle.appendingPathComponent("Contents/MacOS/Veloop")
         self.currentBuild = currentBuild
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
             ?? "unknown"
@@ -89,8 +80,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     }
 
     private func ensureRegisteredAndRunningLocked() throws {
+        try validateApplicationIdentity()
         try migrateLegacyLoginItemIfNeeded()
-        try ensurePersistentAgentInstalled()
         let shouldRemoveLaunchAgent = !startAtLoginPreference
         do {
             try installLaunchAgent()
@@ -107,55 +98,11 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
     }
 
-    private func installLaunchAgent() throws {
-        let data = try launchAgentData()
-        var loaded = isLoaded
-        if (try? Data(contentsOf: launchAgentURL)) != data {
-            if loaded {
-                try requireSuccess(["bootout", serviceTarget])
-                loaded = false
-            }
-            try fileManager.createDirectory(
-                at: launchAgentURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try data.write(to: launchAgentURL, options: .atomic)
-        }
-        if !loaded {
-            try requireSuccess(["bootstrap", domainTarget, launchAgentURL.path])
-        }
-    }
-
-    private func ensurePersistentAgentInstalled() throws {
-        if fileManager.fileExists(atPath: installedAgentBundleURL.path) {
-            guard fileManager.fileExists(atPath: agentExecutableURL.path) else {
-                throw AgentRegistrationError.invalidPersistentAgent
-            }
-            return
-        }
-
-        guard fileManager.fileExists(atPath: embeddedAgentBundleURL.path) else {
-            throw AgentRegistrationError.embeddedAgentMissing
-        }
-        let parentURL = installedAgentBundleURL.deletingLastPathComponent()
-        try fileManager.createDirectory(at: parentURL, withIntermediateDirectories: true)
-        let temporaryURL = parentURL.appendingPathComponent(
-            ".Veloop Agent.app.installing-\(UUID().uuidString)"
-        )
-        defer { try? fileManager.removeItem(at: temporaryURL) }
-        try fileManager.copyItem(at: embeddedAgentBundleURL, to: temporaryURL)
-        do {
-            try fileManager.moveItem(at: temporaryURL, to: installedAgentBundleURL)
-        } catch {
-            guard fileManager.fileExists(atPath: agentExecutableURL.path) else { throw error }
-        }
-    }
-
     func setStartAtLoginEnabled(_ enabled: Bool) throws {
         try lock.withLock {
+            try validateApplicationIdentity()
             try migrateLegacyLoginItemIfNeeded()
             if enabled {
-                try ensurePersistentAgentInstalled()
                 try installLaunchAgent()
                 try requireSuccess(["kickstart", serviceTarget])
                 try requireSuccess(["print", serviceTarget])
@@ -187,12 +134,43 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
     }
 
-    private var domainTarget: String {
-        "gui/\(getuid())"
+    private func validateApplicationIdentity() throws {
+        guard fileManager.fileExists(atPath: agentExecutableURL.path) else {
+            throw AgentRegistrationError.invalidApplication
+        }
+        let infoURL = applicationBundleURL.appendingPathComponent("Contents/Info.plist")
+        let data = try Data(contentsOf: infoURL)
+        let info = try PropertyListSerialization.propertyList(from: data, format: nil)
+        guard let dictionary = info as? [String: Any],
+              dictionary["CFBundleIdentifier"] as? String == AppConstants.bundleIdentifier,
+              dictionary["CFBundleExecutable"] as? String == "Veloop" else {
+            throw AgentRegistrationError.invalidApplication
+        }
     }
 
+    private func installLaunchAgent() throws {
+        let data = try launchAgentData()
+        var loaded = isLoaded
+        if (try? Data(contentsOf: launchAgentURL)) != data {
+            if loaded {
+                try requireSuccess(["bootout", serviceTarget])
+                loaded = false
+            }
+            try fileManager.createDirectory(
+                at: launchAgentURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: launchAgentURL, options: .atomic)
+        }
+        if !loaded {
+            try requireSuccess(["bootstrap", domainTarget, launchAgentURL.path])
+        }
+    }
+
+    private var domainTarget: String { "gui/\(getuid())" }
+
     private var serviceTarget: String {
-        "\(domainTarget)/\(Self.label)"
+        "\(domainTarget)/\(AppConstants.agentLaunchAgentLabel)"
     }
 
     private var isLoaded: Bool {
@@ -202,11 +180,11 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     private func launchAgentData() throws -> Data {
         try PropertyListSerialization.data(
             fromPropertyList: [
-                "Label": Self.label,
-                "AssociatedBundleIdentifiers": ["com.veloop.app"],
+                "Label": AppConstants.agentLaunchAgentLabel,
+                "AssociatedBundleIdentifiers": [AppConstants.bundleIdentifier],
                 "EnvironmentVariables": ["VELOOP_BUILD_VERSION": currentBuild],
                 "KeepAlive": ["SuccessfulExit": false],
-                "ProgramArguments": [agentExecutableURL.path],
+                "ProgramArguments": [agentExecutableURL.path, "--agent"],
                 "RunAtLoad": true,
                 "ProcessType": "Interactive",
             ],
@@ -216,8 +194,11 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     }
 
     private func removeLaunchAgentFile() throws {
-        guard fileManager.fileExists(atPath: launchAgentURL.path) else { return }
-        try fileManager.removeItem(at: launchAgentURL)
+        do {
+            try fileManager.removeItem(at: launchAgentURL)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            return
+        }
     }
 
     private func migrateLegacyLoginItemIfNeeded() throws {
@@ -233,21 +214,6 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
     }
 
-    private static func embeddedAgentBundleURL() -> URL {
-        let loginItems = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LoginItems")
-        return loginItems.appendingPathComponent("Veloop.app")
-    }
-
-    private static func defaultInstalledAgentBundleURL(fileManager: FileManager) -> URL {
-        let sharedURL = URL(fileURLWithPath: "/Applications/Veloop Agent.app")
-        let userURL = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Applications/Veloop Agent.app")
-        if fileManager.fileExists(atPath: sharedURL.path) { return sharedURL }
-        if fileManager.fileExists(atPath: userURL.path) { return userURL }
-        if fileManager.isWritableFile(atPath: "/Applications") { return sharedURL }
-        return userURL
-    }
-
     private static func runLaunchctl(_ arguments: [String]) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
@@ -260,7 +226,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     }
 
     private static func unregisterLegacyLoginItem() throws {
-        let service = SMAppService.loginItem(identifier: label)
+        let service = SMAppService.loginItem(identifier: AppConstants.agentLaunchAgentLabel)
         switch service.status {
         case .enabled, .requiresApproval:
             try service.unregister()
@@ -273,8 +239,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
 }
 
 private enum AgentRegistrationError: Error {
-    case embeddedAgentMissing
-    case invalidPersistentAgent
+    case invalidApplication
     case launchctlFailed(Int32)
 }
 

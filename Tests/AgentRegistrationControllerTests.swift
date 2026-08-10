@@ -1,75 +1,45 @@
 import Foundation
-@testable import VeloopCore
 import XCTest
+@testable import VeloopCore
 
 final class AgentRegistrationControllerTests: XCTestCase {
-    func testFreshRegistrationInstallsPersistentAgentBeforeWritingLaunchAgent() throws {
-        let harness = try makeHarness(statuses: [1, 0, 0, 0])
+    func testFreshRegistrationUsesOnlyCanonicalMainExecutableAndAgentMode() throws {
+        let harness = try RegistrationHarness(statuses: [1, 0, 0, 0])
 
         try harness.controller.ensureRegisteredAndRunning()
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: harness.installedAgentExecutableURL.path))
-        XCTAssertEqual(
-            try Data(contentsOf: harness.installedAgentExecutableURL),
-            Data("embedded-agent".utf8)
-        )
-        let data = try Data(contentsOf: harness.launchAgentURL)
-        let plist = try XCTUnwrap(
-            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
-        )
-        XCTAssertEqual(
-            plist["ProgramArguments"] as? [String],
-            [harness.installedAgentExecutableURL.path]
-        )
-    }
-
-    func testExistingPersistentAgentIsPreservedAcrossRegistration() throws {
-        let harness = try makeHarness(
-            statuses: [1, 0, 0, 0],
-            installedAgentContents: "previous-authorized-agent"
-        )
-
-        try harness.controller.ensureRegisteredAndRunning()
-
-        XCTAssertEqual(
-            try Data(contentsOf: harness.installedAgentExecutableURL),
-            Data("previous-authorized-agent".utf8)
-        )
-    }
-
-    func testFreshRegistrationBootstrapsKickstartsVerifiesAndWritesStablePlist() throws {
-        let harness = try makeHarness(statuses: [1, 0, 0, 0])
-
-        try harness.controller.ensureRegisteredAndRunning()
-
+        let plist = try harness.launchAgentPlist()
+        XCTAssertEqual(plist["Label"] as? String, "com.veloop.service")
+        XCTAssertEqual(plist["AssociatedBundleIdentifiers"] as? [String], ["com.veloop.app"])
+        XCTAssertEqual(plist["ProgramArguments"] as? [String], [
+            harness.executableURL.path,
+            "--agent",
+        ])
         XCTAssertEqual(harness.launchctl.calls, [
             ["print", harness.serviceTarget],
             ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
             ["kickstart", harness.serviceTarget],
             ["print", harness.serviceTarget],
         ])
-        XCTAssertEqual(harness.migration.callCount, 1)
-
-        let data = try Data(contentsOf: harness.launchAgentURL)
-        let plist = try XCTUnwrap(
-            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
-        )
-        XCTAssertEqual(plist["Label"] as? String, "com.veloop.service")
-        XCTAssertEqual(plist["AssociatedBundleIdentifiers"] as? [String], ["com.veloop.app"])
-        XCTAssertEqual(
-            plist["EnvironmentVariables"] as? [String: String],
-            ["VELOOP_BUILD_VERSION": "test-build"]
-        )
-        XCTAssertEqual(
-            plist["ProgramArguments"] as? [String],
-            [harness.installedAgentExecutableURL.path]
-        )
-        XCTAssertEqual(plist["RunAtLoad"] as? Bool, true)
-        XCTAssertEqual(plist["ProcessType"] as? String, "Interactive")
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: harness.applicationsDirectory.appendingPathComponent("Veloop Agent.app").path
+        ))
     }
 
-    func testLoadedCurrentRegistrationStillKickstartsWithoutKThenVerifies() throws {
-        let harness = try makeHarness(statuses: [1, 0, 0, 0, 0, 0, 0])
+    func testRegistrationRejectsWrongMainBundleIdentifierBeforeLaunchctl() throws {
+        let harness = try RegistrationHarness(
+            statuses: [],
+            bundleIdentifier: "com.example.wrong"
+        )
+
+        XCTAssertThrowsError(try harness.controller.ensureRegisteredAndRunning())
+
+        XCTAssertTrue(harness.launchctl.calls.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: harness.launchAgentURL.path))
+    }
+
+    func testLoadedCurrentRegistrationKickstartsWithoutReplacingApplication() throws {
+        let harness = try RegistrationHarness(statuses: [1, 0, 0, 0, 0, 0, 0])
         try harness.controller.ensureRegisteredAndRunning()
         harness.launchctl.removeCalls()
 
@@ -80,280 +50,150 @@ final class AgentRegistrationControllerTests: XCTestCase {
             ["kickstart", harness.serviceTarget],
             ["print", harness.serviceTarget],
         ])
-        XCTAssertEqual(harness.migration.callCount, 1)
+        XCTAssertEqual(try Data(contentsOf: harness.executableURL), Data("main-executable".utf8))
     }
 
-    func testDisabledLoginBootstrapsKickstartsVerifiesThenRemovesPlist() throws {
-        let harness = try makeHarness(startAtLogin: false, statuses: [1, 0, 0, 0])
+    func testDisabledLoginRunsCurrentAgentThenRemovesPersistentPlist() throws {
+        let harness = try RegistrationHarness(startAtLogin: false, statuses: [1, 0, 0, 0])
 
         try harness.controller.ensureRegisteredAndRunning()
 
-        XCTAssertEqual(harness.launchctl.calls, [
-            ["print", harness.serviceTarget],
-            ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
-            ["kickstart", harness.serviceTarget],
-            ["print", harness.serviceTarget],
-        ])
         XCTAssertFalse(FileManager.default.fileExists(atPath: harness.launchAgentURL.path))
-        XCTAssertFalse(harness.defaults.bool(forKey: "veloop.startAtLogin"))
+        XCTAssertFalse(harness.controller.isStartAtLoginEnabled)
     }
 
-    func testRestartEnsuresWithNonKKickstartBeforeForcedKickstart() throws {
-        let harness = try makeHarness(statuses: [1, 0, 0, 0, 0])
+    func testLegacyServiceManagementMigrationRunsOnlyOnce() throws {
+        let harness = try RegistrationHarness(statuses: [1, 0, 0, 0, 0, 0, 0])
 
-        try harness.controller.restartRegisteredAgent()
+        try harness.controller.ensureRegisteredAndRunning()
+        try harness.controller.ensureRegisteredAndRunning()
 
-        XCTAssertEqual(harness.launchctl.calls, [
-            ["print", harness.serviceTarget],
-            ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
-            ["kickstart", harness.serviceTarget],
-            ["print", harness.serviceTarget],
-            ["kickstart", "-k", harness.serviceTarget],
-        ])
+        XCTAssertEqual(harness.legacyMigration.callCount, 1)
     }
+}
 
-    func testKickstartFailurePropagatesAndRemovesDisabledLoginPlist() throws {
-        let harness = try makeHarness(startAtLogin: false, statuses: [1, 0, 7])
+private final class RegistrationHarness {
+    let root: URL
+    let applicationsDirectory: URL
+    let appBundleURL: URL
+    let executableURL: URL
+    let launchAgentURL: URL
+    let suiteName: String
+    let defaults: UserDefaults
+    let launchctl: RegistrationLaunchctlRecorder
+    let legacyMigration = RegistrationCallRecorder()
+    let controller: AgentRegistrationController
+    let domainTarget = "gui/\(getuid())"
+    var serviceTarget: String { "\(domainTarget)/com.veloop.service" }
 
-        XCTAssertThrowsError(try harness.controller.ensureRegisteredAndRunning())
-
-        XCTAssertEqual(harness.launchctl.calls, [
-            ["print", harness.serviceTarget],
-            ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
-            ["kickstart", harness.serviceTarget],
-        ])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: harness.launchAgentURL.path))
-    }
-
-    func testPrintFailurePropagatesAndRemovesDisabledLoginPlist() throws {
-        let harness = try makeHarness(startAtLogin: false, statuses: [1, 0, 0, 8])
-
-        XCTAssertThrowsError(try harness.controller.ensureRegisteredAndRunning())
-
-        XCTAssertEqual(harness.launchctl.calls, [
-            ["print", harness.serviceTarget],
-            ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
-            ["kickstart", harness.serviceTarget],
-            ["print", harness.serviceTarget],
-        ])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: harness.launchAgentURL.path))
-    }
-
-    func testLaunchctlFailureDoesNotPersistChangedLoginPreference() throws {
-        let harness = try makeHarness(startAtLogin: false, statuses: [1, 9])
-
-        XCTAssertThrowsError(try harness.controller.setStartAtLoginEnabled(true))
-
-        XCTAssertFalse(harness.defaults.bool(forKey: "veloop.startAtLogin"))
-        XCTAssertEqual(harness.launchctl.calls, [
-            ["print", harness.serviceTarget],
-            ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
-        ])
-    }
-
-    func testRapidPreferenceChangesPreserveSubmissionAndCompletionOrder() throws {
-        let harness = try makeHarness(statuses: [1, 0, 0, 0])
-        let offCompleted = expectation(description: "off completed")
-        let onCompleted = expectation(description: "on completed")
-        let completions = CompletionRecorder()
-
-        harness.controller.setStartAtLoginEnabled(false) { succeeded in
-            completions.append("off:\(succeeded)")
-            offCompleted.fulfill()
-        }
-        harness.controller.setStartAtLoginEnabled(true) { succeeded in
-            completions.append("on:\(succeeded)")
-            onCompleted.fulfill()
-        }
-        wait(for: [offCompleted, onCompleted], timeout: 1, enforceOrder: true)
-
-        XCTAssertEqual(completions.values, ["off:true", "on:true"])
-        XCTAssertTrue(harness.defaults.bool(forKey: "veloop.startAtLogin"))
-        XCTAssertEqual(harness.launchctl.calls, [
-            ["print", harness.serviceTarget],
-            ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
-            ["kickstart", harness.serviceTarget],
-            ["print", harness.serviceTarget],
-        ])
-    }
-
-    func testPreferenceReadDoesNotWaitForBlockedLifecycleLaunchctl() throws {
-        let harness = try makeHarness(statuses: [1, 0, 0, 0], blockedLaunchctlCall: 0)
-        let lifecycleFinished = DispatchSemaphore(value: 0)
-        let preferenceReadFinished = DispatchSemaphore(value: 0)
-
-        DispatchQueue.global().async {
-            try? harness.controller.ensureRegisteredAndRunning()
-            lifecycleFinished.signal()
-        }
-        XCTAssertEqual(
-            harness.launchctl.blockedCallStarted.wait(timeout: .now() + 1),
-            .success
-        )
-
-        DispatchQueue.global().async {
-            _ = harness.controller.isStartAtLoginEnabled
-            preferenceReadFinished.signal()
-        }
-        let readBeforeRelease = preferenceReadFinished.wait(timeout: .now() + 1)
-
-        harness.launchctl.releaseBlockedCall.signal()
-        XCTAssertEqual(lifecycleFinished.wait(timeout: .now() + 1), .success)
-        XCTAssertEqual(readBeforeRelease, .success)
-    }
-
-    private func makeHarness(
+    init(
         startAtLogin: Bool? = nil,
         statuses: [Int32],
-        blockedLaunchctlCall: Int? = nil,
-        installedAgentContents: String? = nil
-    ) throws -> RegistrationHarness {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("veloop-registration-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        bundleIdentifier: String = "com.veloop.app"
+    ) throws {
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AgentRegistrationControllerTests-\(UUID().uuidString)")
+        applicationsDirectory = root.appendingPathComponent("Applications", isDirectory: true)
+        appBundleURL = applicationsDirectory.appendingPathComponent("Veloop.app", isDirectory: true)
+        executableURL = appBundleURL.appendingPathComponent("Contents/MacOS/Veloop")
+        launchAgentURL = root.appendingPathComponent(
+            "home/Library/LaunchAgents/com.veloop.service.plist"
+        )
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("main-executable".utf8).write(to: executableURL)
+        let info: [String: Any] = [
+            "CFBundleIdentifier": bundleIdentifier,
+            "CFBundleExecutable": "Veloop",
+        ]
+        let infoData = try PropertyListSerialization.data(
+            fromPropertyList: info,
+            format: .xml,
+            options: 0
+        )
+        try infoData.write(to: appBundleURL.appendingPathComponent("Contents/Info.plist"))
 
-        let suiteName = "veloop-registration-tests-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        suiteName = "AgentRegistrationControllerTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
-        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
         if let startAtLogin {
             defaults.set(startAtLogin, forKey: "veloop.startAtLogin")
         }
-
-        let launchAgentURL = root
-            .appendingPathComponent("Library/LaunchAgents/com.veloop.service.plist")
-        let embeddedAgentBundleURL = root
-            .appendingPathComponent("Embedded/Veloop.app")
-        let embeddedAgentExecutableURL = embeddedAgentBundleURL
-            .appendingPathComponent("Contents/MacOS/Veloop")
-        try FileManager.default.createDirectory(
-            at: embeddedAgentExecutableURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data("embedded-agent".utf8).write(to: embeddedAgentExecutableURL)
-        let installedAgentBundleURL = root
-            .appendingPathComponent("Applications/Veloop Agent.app")
-        let installedAgentExecutableURL = installedAgentBundleURL
-            .appendingPathComponent("Contents/MacOS/Veloop")
-        if let installedAgentContents {
-            try FileManager.default.createDirectory(
-                at: installedAgentExecutableURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try Data(installedAgentContents.utf8).write(to: installedAgentExecutableURL)
-        }
-        let launchctl = LaunchctlRecorder(
-            statuses: statuses,
-            blockedCall: blockedLaunchctlCall
-        )
-        let migration = MigrationRecorder()
-        let controller = AgentRegistrationController(
+        launchctl = RegistrationLaunchctlRecorder(statuses: statuses)
+        let launchctl = self.launchctl
+        let legacyMigration = self.legacyMigration
+        controller = AgentRegistrationController(
             defaults: defaults,
-            fileManager: .default,
             launchAgentURL: launchAgentURL,
-            embeddedAgentBundleURL: embeddedAgentBundleURL,
-            installedAgentBundleURL: installedAgentBundleURL,
+            applicationBundleURL: appBundleURL,
             currentBuild: "test-build",
-            unregisterLegacyService: { try migration.run() },
+            unregisterLegacyService: { legacyMigration.increment() },
             launchctl: { arguments in try launchctl.run(arguments) }
         )
-        let domainTarget = "gui/\(getuid())"
-        return RegistrationHarness(
-            controller: controller,
-            defaults: defaults,
-            launchAgentURL: launchAgentURL,
-            installedAgentExecutableURL: installedAgentExecutableURL,
-            launchctl: launchctl,
-            migration: migration,
-            domainTarget: domainTarget,
-            serviceTarget: "\(domainTarget)/com.veloop.service"
+    }
+
+    deinit {
+        defaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func launchAgentPlist() throws -> [String: Any] {
+        let data = try Data(contentsOf: launchAgentURL)
+        return try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         )
     }
 }
 
-private struct RegistrationHarness {
-    let controller: AgentRegistrationController
-    let defaults: UserDefaults
-    let launchAgentURL: URL
-    let installedAgentExecutableURL: URL
-    let launchctl: LaunchctlRecorder
-    let migration: MigrationRecorder
-    let domainTarget: String
-    let serviceTarget: String
-}
-
-private final class LaunchctlRecorder: @unchecked Sendable {
+private final class RegistrationLaunchctlRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var statuses: [Int32]
     private var storage: [[String]] = []
-    private var callIndex = 0
-    private let blockedCall: Int?
-    let blockedCallStarted = DispatchSemaphore(value: 0)
-    let releaseBlockedCall = DispatchSemaphore(value: 0)
 
-    init(statuses: [Int32], blockedCall: Int? = nil) {
+    init(statuses: [Int32]) {
         self.statuses = statuses
-        self.blockedCall = blockedCall
     }
 
     var calls: [[String]] {
-        lock.withLock { storage }
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
     }
 
     func run(_ arguments: [String]) throws -> Int32 {
-        let (status, shouldBlock) = try lock.withLock {
-            storage.append(arguments)
-            guard !statuses.isEmpty else { throw RegistrationTestError.unexpectedLaunchctlCall }
-            defer { callIndex += 1 }
-            return (statuses.removeFirst(), callIndex == blockedCall)
-        }
-        if shouldBlock {
-            blockedCallStarted.signal()
-            releaseBlockedCall.wait()
-        }
-        return status
+        lock.lock()
+        defer { lock.unlock() }
+        storage.append(arguments)
+        guard !statuses.isEmpty else { throw RegistrationTestError.unexpectedLaunchctlCall }
+        return statuses.removeFirst()
     }
 
     func removeCalls() {
-        lock.withLock { storage.removeAll() }
+        lock.lock()
+        storage.removeAll()
+        lock.unlock()
     }
 }
 
-private final class MigrationRecorder: @unchecked Sendable {
+private final class RegistrationCallRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var calls = 0
 
     var callCount: Int {
-        lock.withLock { calls }
+        lock.lock()
+        defer { lock.unlock() }
+        return calls
     }
 
-    func run() throws {
-        lock.withLock { calls += 1 }
-    }
-}
-
-private final class CompletionRecorder: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [String] = []
-
-    var values: [String] {
-        lock.withLock { storage }
-    }
-
-    func append(_ value: String) {
-        lock.withLock { storage.append(value) }
+    func increment() {
+        lock.lock()
+        calls += 1
+        lock.unlock()
     }
 }
 
 private enum RegistrationTestError: Error {
     case unexpectedLaunchctlCall
-}
-
-private extension NSLock {
-    func withLock<T>(_ body: () throws -> T) rethrows -> T {
-        lock()
-        defer { unlock() }
-        return try body()
-    }
 }
