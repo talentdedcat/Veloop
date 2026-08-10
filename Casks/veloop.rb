@@ -2,7 +2,7 @@
 
 cask "veloop" do
   version "0.1.3"
-  sha256 "4697d91c3579d9ac13730dde821ff5a05e0def7fbe208f4c3815fa12c4c7f40b"
+  sha256 "a29d1d540fee013016291fe37c421d022aadf2043b541ada54e3fc12df96919d"
 
   url "https://github.com/talentdedcat/Veloop/releases/download/v#{version}/Veloop-#{version}-universal.dmg"
   name "Veloop"
@@ -21,6 +21,8 @@ cask "veloop" do
               ["TERM", "com.talentdedcat.veloop.palette"],
             ],
             delete:    [
+              "/Applications/Veloop Agent.app",
+              "~/Applications/Veloop Agent.app",
               "~/Library/Input Methods/VeloopPalette.app",
               "~/Library/LaunchAgents/com.veloop.service.plist",
             ]

@@ -16,7 +16,7 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 
 The Core module is shared by the shipped executables and the XCTest contracts. System API ownership stays in focused wrappers so capture, retention, presentation, and control logic remain independently testable.
 
-The control app coordinates Agent lifecycle through `AgentRegistrationController` and reads permission status over Agent IPC. Launch and every control-app activation trigger an Agent restart followed by a bounded state refresh; permission truth remains owned by the running Agent.
+The control app coordinates Agent lifecycle through `AgentRegistrationController` and reads permission status over Agent IPC. On first launch, registration copies the signed embedded Agent to `/Applications/Veloop Agent.app` when writable, falling back to `~/Applications/Veloop Agent.app`; later releases preserve either persistent bundle so its ad-hoc code hash and TCC grants remain stable. Launch and every control-app activation trigger an Agent restart followed by a bounded state refresh; permission truth remains owned by the running Agent.
 
 ## Runtime flow
 

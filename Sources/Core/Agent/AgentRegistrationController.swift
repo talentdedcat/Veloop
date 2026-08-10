@@ -14,6 +14,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let launchAgentURL: URL
+    private let embeddedAgentBundleURL: URL
+    private let installedAgentBundleURL: URL
     private let agentExecutableURL: URL
     private let currentBuild: String
     private let unregisterLegacyService: UnregisterLegacyService
@@ -29,7 +31,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             defaults: .standard,
             fileManager: .default,
             launchAgentURL: nil,
-            agentExecutableURL: nil,
+            embeddedAgentBundleURL: nil,
+            installedAgentBundleURL: nil,
             currentBuild: nil,
             unregisterLegacyService: {
                 try AgentRegistrationController.unregisterLegacyLoginItem()
@@ -44,17 +47,22 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         defaults: UserDefaults = .standard,
         fileManager: FileManager = .default,
         launchAgentURL: URL? = nil,
-        agentExecutableURL: URL? = nil,
+        embeddedAgentBundleURL: URL? = nil,
+        installedAgentBundleURL: URL? = nil,
         currentBuild: String? = nil,
         unregisterLegacyService: @escaping UnregisterLegacyService,
         launchctl: @escaping Launchctl
     ) {
-        let bundleURL = Self.embeddedAgentBundleURL()
+        let embeddedBundleURL = embeddedAgentBundleURL ?? Self.embeddedAgentBundleURL()
+        let installedBundleURL = installedAgentBundleURL
+            ?? Self.defaultInstalledAgentBundleURL(fileManager: fileManager)
         self.defaults = defaults
         self.fileManager = fileManager
         self.launchAgentURL = launchAgentURL ?? fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/com.veloop.service.plist")
-        self.agentExecutableURL = agentExecutableURL ?? bundleURL
+        self.embeddedAgentBundleURL = embeddedBundleURL
+        self.installedAgentBundleURL = installedBundleURL
+        self.agentExecutableURL = installedBundleURL
             .appendingPathComponent("Contents/MacOS/Veloop")
         self.currentBuild = currentBuild
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
@@ -82,6 +90,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
 
     private func ensureRegisteredAndRunningLocked() throws {
         try migrateLegacyLoginItemIfNeeded()
+        try ensurePersistentAgentInstalled()
         let shouldRemoveLaunchAgent = !startAtLoginPreference
         do {
             try installLaunchAgent()
@@ -117,10 +126,36 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
     }
 
+    private func ensurePersistentAgentInstalled() throws {
+        if fileManager.fileExists(atPath: installedAgentBundleURL.path) {
+            guard fileManager.fileExists(atPath: agentExecutableURL.path) else {
+                throw AgentRegistrationError.invalidPersistentAgent
+            }
+            return
+        }
+
+        guard fileManager.fileExists(atPath: embeddedAgentBundleURL.path) else {
+            throw AgentRegistrationError.embeddedAgentMissing
+        }
+        let parentURL = installedAgentBundleURL.deletingLastPathComponent()
+        try fileManager.createDirectory(at: parentURL, withIntermediateDirectories: true)
+        let temporaryURL = parentURL.appendingPathComponent(
+            ".Veloop Agent.app.installing-\(UUID().uuidString)"
+        )
+        defer { try? fileManager.removeItem(at: temporaryURL) }
+        try fileManager.copyItem(at: embeddedAgentBundleURL, to: temporaryURL)
+        do {
+            try fileManager.moveItem(at: temporaryURL, to: installedAgentBundleURL)
+        } catch {
+            guard fileManager.fileExists(atPath: agentExecutableURL.path) else { throw error }
+        }
+    }
+
     func setStartAtLoginEnabled(_ enabled: Bool) throws {
         try lock.withLock {
             try migrateLegacyLoginItemIfNeeded()
             if enabled {
+                try ensurePersistentAgentInstalled()
                 try installLaunchAgent()
                 try requireSuccess(["kickstart", serviceTarget])
                 try requireSuccess(["print", serviceTarget])
@@ -203,6 +238,16 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         return loginItems.appendingPathComponent("Veloop.app")
     }
 
+    private static func defaultInstalledAgentBundleURL(fileManager: FileManager) -> URL {
+        let sharedURL = URL(fileURLWithPath: "/Applications/Veloop Agent.app")
+        let userURL = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications/Veloop Agent.app")
+        if fileManager.fileExists(atPath: sharedURL.path) { return sharedURL }
+        if fileManager.fileExists(atPath: userURL.path) { return userURL }
+        if fileManager.isWritableFile(atPath: "/Applications") { return sharedURL }
+        return userURL
+    }
+
     private static func runLaunchctl(_ arguments: [String]) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
@@ -228,6 +273,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
 }
 
 private enum AgentRegistrationError: Error {
+    case embeddedAgentMissing
+    case invalidPersistentAgent
     case launchctlFailed(Int32)
 }
 

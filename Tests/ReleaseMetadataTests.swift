@@ -46,7 +46,10 @@ final class ReleaseMetadataTests: XCTestCase {
             "This also covers permission changes made by opening System Settings independently.",
             "An ordinary launch does not prompt for permissions.",
             "Use the permission buttons only when the corresponding permission is missing.",
-            "an upgrade may require enabling Veloop again in System Settings",
+            "/Applications/Veloop Agent.app",
+            "~/Applications/Veloop Agent.app",
+            "Veloop preserves this installed Agent during upgrades so an existing permission grant remains usable",
+            "The first migration to v0.1.3 requires adding the new persistent Agent once",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
@@ -69,7 +72,10 @@ final class ReleaseMetadataTests: XCTestCase {
             "这也涵盖用户自行打开“系统设置”所做的权限更改。",
             "普通启动不会请求权限。",
             "仅在相应权限缺失时使用权限按钮。",
-            "升级后可能需要在“系统设置”中重新启用 Veloop",
+            "/Applications/Veloop Agent.app",
+            "~/Applications/Veloop Agent.app",
+            "升级时 Veloop 会保留这份已安装 Agent，因此已有权限可以继续使用",
+            "首次迁移到 v0.1.3 时，需要添加一次新的持久 Agent",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }

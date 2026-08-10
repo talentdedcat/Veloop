@@ -127,6 +127,8 @@ final class PackagingContractTests: XCTestCase {
         let uninstall = cask[uninstallStart.lowerBound..<zapStart.lowerBound]
         let zap = cask[zapStart.lowerBound...]
         let runtimePaths = [
+            "/Applications/Veloop Agent.app",
+            "~/Applications/Veloop Agent.app",
             "~/Library/Input Methods/VeloopPalette.app",
             "~/Library/LaunchAgents/com.veloop.service.plist",
         ]

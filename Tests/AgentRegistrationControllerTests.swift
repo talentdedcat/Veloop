@@ -3,6 +3,40 @@ import Foundation
 import XCTest
 
 final class AgentRegistrationControllerTests: XCTestCase {
+    func testFreshRegistrationInstallsPersistentAgentBeforeWritingLaunchAgent() throws {
+        let harness = try makeHarness(statuses: [1, 0, 0, 0])
+
+        try harness.controller.ensureRegisteredAndRunning()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: harness.installedAgentExecutableURL.path))
+        XCTAssertEqual(
+            try Data(contentsOf: harness.installedAgentExecutableURL),
+            Data("embedded-agent".utf8)
+        )
+        let data = try Data(contentsOf: harness.launchAgentURL)
+        let plist = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+        XCTAssertEqual(
+            plist["ProgramArguments"] as? [String],
+            [harness.installedAgentExecutableURL.path]
+        )
+    }
+
+    func testExistingPersistentAgentIsPreservedAcrossRegistration() throws {
+        let harness = try makeHarness(
+            statuses: [1, 0, 0, 0],
+            installedAgentContents: "previous-authorized-agent"
+        )
+
+        try harness.controller.ensureRegisteredAndRunning()
+
+        XCTAssertEqual(
+            try Data(contentsOf: harness.installedAgentExecutableURL),
+            Data("previous-authorized-agent".utf8)
+        )
+    }
+
     func testFreshRegistrationBootstrapsKickstartsVerifiesAndWritesStablePlist() throws {
         let harness = try makeHarness(statuses: [1, 0, 0, 0])
 
@@ -26,7 +60,10 @@ final class AgentRegistrationControllerTests: XCTestCase {
             plist["EnvironmentVariables"] as? [String: String],
             ["VELOOP_BUILD_VERSION": "test-build"]
         )
-        XCTAssertEqual(plist["ProgramArguments"] as? [String], [harness.agentExecutableURL.path])
+        XCTAssertEqual(
+            plist["ProgramArguments"] as? [String],
+            [harness.installedAgentExecutableURL.path]
+        )
         XCTAssertEqual(plist["RunAtLoad"] as? Bool, true)
         XCTAssertEqual(plist["ProcessType"] as? String, "Interactive")
     }
@@ -168,7 +205,8 @@ final class AgentRegistrationControllerTests: XCTestCase {
     private func makeHarness(
         startAtLogin: Bool? = nil,
         statuses: [Int32],
-        blockedLaunchctlCall: Int? = nil
+        blockedLaunchctlCall: Int? = nil,
+        installedAgentContents: String? = nil
     ) throws -> RegistrationHarness {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("veloop-registration-tests-\(UUID().uuidString)")
@@ -185,8 +223,26 @@ final class AgentRegistrationControllerTests: XCTestCase {
 
         let launchAgentURL = root
             .appendingPathComponent("Library/LaunchAgents/com.veloop.service.plist")
-        let agentExecutableURL = root
-            .appendingPathComponent("Veloop.app/Contents/MacOS/Veloop")
+        let embeddedAgentBundleURL = root
+            .appendingPathComponent("Embedded/Veloop.app")
+        let embeddedAgentExecutableURL = embeddedAgentBundleURL
+            .appendingPathComponent("Contents/MacOS/Veloop")
+        try FileManager.default.createDirectory(
+            at: embeddedAgentExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("embedded-agent".utf8).write(to: embeddedAgentExecutableURL)
+        let installedAgentBundleURL = root
+            .appendingPathComponent("Applications/Veloop Agent.app")
+        let installedAgentExecutableURL = installedAgentBundleURL
+            .appendingPathComponent("Contents/MacOS/Veloop")
+        if let installedAgentContents {
+            try FileManager.default.createDirectory(
+                at: installedAgentExecutableURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try Data(installedAgentContents.utf8).write(to: installedAgentExecutableURL)
+        }
         let launchctl = LaunchctlRecorder(
             statuses: statuses,
             blockedCall: blockedLaunchctlCall
@@ -196,7 +252,8 @@ final class AgentRegistrationControllerTests: XCTestCase {
             defaults: defaults,
             fileManager: .default,
             launchAgentURL: launchAgentURL,
-            agentExecutableURL: agentExecutableURL,
+            embeddedAgentBundleURL: embeddedAgentBundleURL,
+            installedAgentBundleURL: installedAgentBundleURL,
             currentBuild: "test-build",
             unregisterLegacyService: { try migration.run() },
             launchctl: { arguments in try launchctl.run(arguments) }
@@ -206,7 +263,7 @@ final class AgentRegistrationControllerTests: XCTestCase {
             controller: controller,
             defaults: defaults,
             launchAgentURL: launchAgentURL,
-            agentExecutableURL: agentExecutableURL,
+            installedAgentExecutableURL: installedAgentExecutableURL,
             launchctl: launchctl,
             migration: migration,
             domainTarget: domainTarget,
@@ -219,7 +276,7 @@ private struct RegistrationHarness {
     let controller: AgentRegistrationController
     let defaults: UserDefaults
     let launchAgentURL: URL
-    let agentExecutableURL: URL
+    let installedAgentExecutableURL: URL
     let launchctl: LaunchctlRecorder
     let migration: MigrationRecorder
     let domainTarget: String

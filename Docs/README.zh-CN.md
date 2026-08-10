@@ -95,7 +95,9 @@ brew install --cask Veloop
 
 权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。普通启动不会请求权限。仅在相应权限缺失时使用权限按钮。
 
-启动时以及控制应用每次重新激活时，Veloop 都会重启当前安装的 Agent 并刷新权限状态。这也涵盖用户自行打开“系统设置”所做的权限更改。由于此版本仍使用 ad-hoc 签名，升级后可能需要在“系统设置”中重新启用 Veloop。
+首次启动时，如果目录可写，Veloop 会将已签名的后台 Agent 复制到 `/Applications/Veloop Agent.app`；非管理员账户会回退到 `~/Applications/Veloop Agent.app`。请在每个隐私权限页面点击“+”，选择这份持久 Agent。首次迁移到 v0.1.3 时，需要添加一次新的持久 Agent，因为 macOS 无法在不同的 ad-hoc 代码哈希之间转移权限。
+
+升级时 Veloop 会保留这份已安装 Agent，因此已有权限可以继续使用。启动时以及控制应用每次重新激活时，Veloop 都会重启当前安装的 Agent 并刷新权限状态。这也涵盖用户自行打开“系统设置”所做的权限更改。
 
 ## 控制应用
 
@@ -103,7 +105,7 @@ brew install --cask Veloop
   <img src="Assets/README/control-window-zh-Hans.png" alt="Veloop 简体中文控制应用" width="760">
 </div>
 
-控制应用用于管理后台 Agent、登录时启动、内容预览、历史与存储上限、系统权限、语言和本地数据。关闭窗口后控制应用退出，内嵌登录项仍可继续捕获剪贴板和处理按键。
+控制应用用于管理后台 Agent、登录时启动、内容预览、历史与存储上限、系统权限、语言和本地数据。关闭窗口后控制应用退出，持久 Agent 仍可继续捕获剪贴板和处理按键。
 
 ## Focus Stack 工作原理
 

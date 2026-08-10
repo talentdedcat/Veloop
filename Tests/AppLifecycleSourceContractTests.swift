@@ -169,6 +169,12 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertTrue(registration.contains("label = \"com.veloop.service\""))
         XCTAssertTrue(registration.contains("Contents/Library/LoginItems"))
         XCTAssertTrue(registration.contains("appendingPathComponent(\"Veloop.app\")"))
+        XCTAssertTrue(registration.contains("/Applications/Veloop Agent.app"))
+        XCTAssertTrue(registration.contains("Applications/Veloop Agent.app"))
+        XCTAssertTrue(registration.contains("ensurePersistentAgentInstalled()"))
+        XCTAssertTrue(registration.contains(
+            "fileManager.fileExists(atPath: installedAgentBundleURL.path)"
+        ))
         XCTAssertFalse(registration.contains("appendingPathComponent(\"VeloopService.app\")"))
         XCTAssertTrue(registration.contains("appendingPathComponent(\"Contents/MacOS/Veloop\")"))
         XCTAssertTrue(registration.contains("\"AssociatedBundleIdentifiers\": [\"com.veloop.app\"]"))

@@ -95,7 +95,9 @@ Caret positioning does not use Accessibility permission. Clipboard capture conti
 
 Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” An ordinary launch does not prompt for permissions. Use the permission buttons only when the corresponding permission is missing.
 
-On launch and whenever the control app becomes active, Veloop restarts the currently installed Agent and refreshes permission status. This also covers permission changes made by opening System Settings independently. Because this release remains ad-hoc signed, an upgrade may require enabling Veloop again in System Settings.
+On first launch, Veloop copies its signed background Agent to `/Applications/Veloop Agent.app` when that directory is writable, with `~/Applications/Veloop Agent.app` as the fallback for non-administrator accounts. In each privacy pane, use the **+** button and choose that persistent Agent. The first migration to v0.1.3 requires adding the new persistent Agent once because macOS cannot transfer a grant between different ad-hoc code hashes.
+
+Veloop preserves this installed Agent during upgrades so an existing permission grant remains usable. On launch and whenever the control app becomes active, Veloop restarts the currently installed Agent and refreshes permission status. This also covers permission changes made by opening System Settings independently.
 
 ## Control app
 
@@ -103,7 +105,7 @@ On launch and whenever the control app becomes active, Veloop restarts the curre
   <img src="Docs/Assets/README/control-window-en.png" alt="Veloop control app in English" width="760">
 </div>
 
-The control app manages the background Agent, launch at login, content previews, history and storage limits, permissions, language, and local data. Closing the window exits the control app while the embedded login item can continue clipboard capture and keyboard handling.
+The control app manages the background Agent, launch at login, content previews, history and storage limits, permissions, language, and local data. Closing the window exits the control app while the persistent Agent can continue clipboard capture and keyboard handling.
 
 ## How Focus Stack works
 
