@@ -18,15 +18,18 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertFalse(activation.contains("synchronizeOnLaunch"))
     }
 
-    func testModelOwnsRegistrationBeforeLaunchSynchronizationAndHasNoNoopBridge() throws {
+    func testModelRestartsCurrentAgentBeforeLaunchSynchronizationAndHasNoNoopBridge() throws {
         let model = try text("Sources/Core/Control/ControlViewModel.swift")
         let synchronization = try functionBody(named: "synchronizeOnLaunch", in: model)
-        let registration = try XCTUnwrap(
-            synchronization.range(of: "lifecycle.ensureRegisteredAndRunning()")
+        let restart = try XCTUnwrap(
+            synchronization.range(of: "lifecycle.restartRegisteredAgent()")
         )
         let reload = try XCTUnwrap(synchronization.range(of: "reloadWithRetry"))
 
-        XCTAssertLessThan(registration.lowerBound, reload.lowerBound)
+        XCTAssertLessThan(restart.lowerBound, reload.lowerBound)
+        XCTAssertFalse(synchronization.contains("lifecycle.ensureRegisteredAndRunning()"))
+        XCTAssertFalse(model.contains("permissionRefreshPending"))
+        XCTAssertFalse(model.contains("markPermissionRefreshPending"))
         XCTAssertTrue(synchronization.contains("publishFailure(.agentUnavailable"))
         XCTAssertFalse(model.contains("convenience init(agent:"))
         XCTAssertFalse(model.contains("CompatibilityAgentLifecycle"))

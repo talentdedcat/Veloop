@@ -4,7 +4,7 @@ import XCTest
 
 final class ControlViewModelTests: XCTestCase {
     @MainActor
-    func testLaunchRegistersBeforeQueryingStateAndPublishesExactPermissions() async {
+    func testLaunchRestartsCurrentAgentBeforeQueryingStateAndPublishesExactPermissions() async {
         let calls = LockedCalls()
         let permissions = permissionStatus(listen: false, post: true, accessibility: true)
         let agent = ScriptedAgent(calls: calls, states: [.success(controlState(permissions: permissions))])
@@ -13,27 +13,31 @@ final class ControlViewModelTests: XCTestCase {
 
         await model.synchronizeOnLaunch()
 
-        XCTAssertEqual(calls.values, ["ensure", "state"])
+        XCTAssertEqual(calls.values, ["restart", "state"])
+        XCTAssertEqual(lifecycle.ensureCallCount, 0)
+        XCTAssertEqual(lifecycle.restartCallCount, 1)
         XCTAssertEqual(model.state?.permissions, permissions)
         XCTAssertEqual(model.permissionSyncState, .available(permissions))
         XCTAssertNil(model.inlineError)
     }
 
     @MainActor
-    func testPendingActivationRestartsThenRetriesStateAndConsumesPendingFlag() async {
+    func testEveryOrdinaryActivationRestartsThenPublishesFreshState() async {
         let calls = LockedCalls()
         let first = controlState(enabled: false)
         let second = controlState(enabled: true)
         let agent = ScriptedAgent(calls: calls, states: [.success(first), .success(second)])
-        let lifecycle = ScriptedLifecycle(calls: calls)
+        let lifecycle = ScriptedLifecycle(
+            calls: calls,
+            restartResults: [.success(()), .success(())]
+        )
         let model = makeModel(agent: agent, lifecycle: lifecycle)
-        model.markPermissionRefreshPending()
 
         await model.applicationDidBecomeActive()
         await model.applicationDidBecomeActive()
 
-        XCTAssertEqual(calls.values, ["restart", "state", "state"])
-        XCTAssertEqual(lifecycle.restartCallCount, 1)
+        XCTAssertEqual(calls.values, ["restart", "state", "restart", "state"])
+        XCTAssertEqual(lifecycle.restartCallCount, 2)
         XCTAssertEqual(model.state, second)
     }
 
@@ -58,42 +62,43 @@ final class ControlViewModelTests: XCTestCase {
             .success(controlState(enabled: false)),
             .success(controlState(enabled: true)),
         ])
-        let lifecycle = ScriptedLifecycle()
+        let lifecycle = ScriptedLifecycle(restartResults: [.success(()), .success(())])
         let model = makeModel(agent: agent, lifecycle: lifecycle)
 
         await model.synchronizeOnLaunch()
         await model.applicationDidBecomeActive()
 
         XCTAssertEqual(agent.requestedGroups, [])
-        XCTAssertEqual(lifecycle.ensureCallCount, 1)
-        XCTAssertEqual(lifecycle.restartCallCount, 0)
+        XCTAssertEqual(lifecycle.ensureCallCount, 0)
+        XCTAssertEqual(lifecycle.restartCallCount, 2)
         XCTAssertEqual(agent.stateCallCount, 2)
     }
 
     @MainActor
-    func testOrdinaryActivationDuringLaunchDoesNotSupersedeRegistrationAndRetry() async {
-        let ensureStarted = expectation(description: "ensure started")
-        let releaseEnsure = DispatchSemaphore(value: 0)
+    func testOrdinaryActivationDuringLaunchDoesNotSupersedeRestartAndRetry() async {
+        let restartStarted = expectation(description: "restart started")
+        let releaseRestart = DispatchSemaphore(value: 0)
         let expected = controlState(enabled: true)
         let agent = ScriptedAgent(states: [
             .failure(TestError.unavailable),
             .success(expected),
         ])
-        let lifecycle = ScriptedLifecycle(ensureHandler: {
-            ensureStarted.fulfill()
-            releaseEnsure.wait()
+        let lifecycle = ScriptedLifecycle(restartHandler: {
+            restartStarted.fulfill()
+            releaseRestart.wait()
         })
         let model = makeModel(agent: agent, lifecycle: lifecycle)
 
         let launch = Task { await model.synchronizeOnLaunch() }
-        await fulfillment(of: [ensureStarted], timeout: 1)
+        await fulfillment(of: [restartStarted], timeout: 1)
         let activation = Task { await model.applicationDidBecomeActive() }
         await Task.yield()
-        releaseEnsure.signal()
+        releaseRestart.signal()
         await launch.value
         await activation.value
 
-        XCTAssertEqual(lifecycle.ensureCallCount, 1)
+        XCTAssertEqual(lifecycle.ensureCallCount, 0)
+        XCTAssertEqual(lifecycle.restartCallCount, 1)
         XCTAssertEqual(agent.stateCallCount, 2)
         XCTAssertEqual(model.state, expected)
         XCTAssertEqual(model.permissionSyncState, .available(expected.permissions))
@@ -221,7 +226,7 @@ final class ControlViewModelTests: XCTestCase {
     func testRegistrationFailureDoesNotQueryAgentAndPublishesUnavailable() async {
         let stale = controlState()
         let agent = ScriptedAgent(states: [.success(stale)])
-        let lifecycle = ScriptedLifecycle(ensureResults: [.failure(TestError.registration)])
+        let lifecycle = ScriptedLifecycle(restartResults: [.failure(TestError.registration)])
         let model = makeModel(agent: agent, lifecycle: lifecycle)
 
         await model.synchronizeOnLaunch()
@@ -237,8 +242,6 @@ final class ControlViewModelTests: XCTestCase {
         let agent = ScriptedAgent(states: [.success(controlState())])
         let lifecycle = ScriptedLifecycle(restartResults: [.failure(TestError.restart)])
         let model = makeModel(agent: agent, lifecycle: lifecycle)
-        model.markPermissionRefreshPending()
-
         await model.applicationDidBecomeActive()
 
         XCTAssertEqual(agent.stateCallCount, 0)
@@ -603,17 +606,20 @@ private final class ScriptedLifecycle: AgentLifecycleControlling, @unchecked Sen
     private var restartCalls = 0
     private var mainThreadStorage: [Bool] = []
     private let ensureHandler: (() throws -> Void)?
+    private let restartHandler: (() throws -> Void)?
 
     init(
         calls: LockedCalls = LockedCalls(),
         ensureResults: [Result<Void, Error>] = [.success(())],
         restartResults: [Result<Void, Error>] = [.success(())],
-        ensureHandler: (() throws -> Void)? = nil
+        ensureHandler: (() throws -> Void)? = nil,
+        restartHandler: (() throws -> Void)? = nil
     ) {
         self.calls = calls
         self.ensureResults = ensureResults
         self.restartResults = restartResults
         self.ensureHandler = ensureHandler
+        self.restartHandler = restartHandler
     }
 
     var ensureCallCount: Int {
@@ -647,6 +653,7 @@ private final class ScriptedLifecycle: AgentLifecycleControlling, @unchecked Sen
             guard !restartResults.isEmpty else { throw TestError.restart }
             try restartResults.removeFirst().get()
         }
+        try restartHandler?()
     }
 }
 

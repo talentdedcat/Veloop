@@ -67,15 +67,15 @@ final class PermissionUISourceContractTests: XCTestCase {
         let gate = try XCTUnwrap(helper.range(of:
             "guard model.permissionSyncState.displayState(for: permissionGroup) == .missing else { return }"
         ))
-        let pending = try XCTUnwrap(helper.range(of: "model.markPermissionRefreshPending()"))
         let open = try XCTUnwrap(helper.range(of: "NSWorkspace.shared.open(url)"))
         let request = try XCTUnwrap(helper.range(of:
             "Task { await model.requestPermissions(permissionGroup) }"
         ))
 
-        XCTAssertLessThan(gate.lowerBound, pending.lowerBound)
-        XCTAssertLessThan(pending.lowerBound, open.lowerBound)
+        XCTAssertLessThan(gate.lowerBound, open.lowerBound)
         XCTAssertLessThan(open.lowerBound, request.lowerBound)
+        XCTAssertFalse(controller.contains("markPermissionRefreshPending"))
+        XCTAssertFalse(controller.contains("permissionRefreshPending"))
         XCTAssertEqual(controller.components(separatedBy: "model.requestPermissions(").count - 1, 1)
         XCTAssertFalse(try functionBody(named: "render", in: controller).contains("requestPermissions"))
     }

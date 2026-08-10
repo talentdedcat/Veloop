@@ -351,13 +351,12 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(activator.contains("kTISPropertyInputSourceIsSelected"))
     }
 
-    func testReturningFromPermissionSettingsRefreshesTheHelperOwnedState() throws {
+    func testEveryApplicationActivationRefreshesTheHelperOwnedState() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
         let delegate = try text("Sources/App/AppDelegate.swift")
-        let mark = try XCTUnwrap(controller.range(of: "model.markPermissionRefreshPending()"))
-        let open = try XCTUnwrap(controller.range(of: "NSWorkspace.shared.open(url)"))
 
-        XCTAssertLessThan(mark.lowerBound, open.lowerBound)
+        XCTAssertFalse(controller.contains("markPermissionRefreshPending"))
+        XCTAssertFalse(controller.contains("permissionRefreshPending"))
         XCTAssertTrue(delegate.contains("await viewModel.applicationDidBecomeActive()"))
         XCTAssertFalse(delegate.contains("await viewModel.reload()"))
     }
