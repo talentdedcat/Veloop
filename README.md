@@ -95,7 +95,7 @@ Caret positioning does not use Accessibility permission. Clipboard capture conti
 
 Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” An ordinary launch does not prompt for permissions. Use the permission buttons only when the corresponding permission is missing.
 
-After returning from System Settings, Veloop restarts the Agent and refreshes the permission status. Because this release remains ad-hoc signed, an upgrade may require enabling Veloop again in System Settings.
+On launch and whenever the control app becomes active, Veloop restarts the currently installed Agent and refreshes permission status. This also covers permission changes made by opening System Settings independently. Because this release remains ad-hoc signed, an upgrade may require enabling Veloop again in System Settings.
 
 ## Control app
 

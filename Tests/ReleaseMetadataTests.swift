@@ -42,13 +42,15 @@ final class ReleaseMetadataTests: XCTestCase {
             #"<table align="center">"#,
             "Permission status is checked live by the background Agent.",
             #"“Checking” and “Agent unavailable” are distinct from “Missing.”"#,
-            "After returning from System Settings, Veloop restarts the Agent and refreshes the permission status.",
+            "On launch and whenever the control app becomes active, Veloop restarts the currently installed Agent and refreshes permission status.",
+            "This also covers permission changes made by opening System Settings independently.",
             "An ordinary launch does not prompt for permissions.",
             "Use the permission buttons only when the corresponding permission is missing.",
             "an upgrade may require enabling Veloop again in System Settings",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
+        XCTAssertFalse(readme.contains("After returning from System Settings"))
         XCTAssertFalse(readme.contains("reproducible public build"))
     }
 
@@ -63,13 +65,15 @@ final class ReleaseMetadataTests: XCTestCase {
             #"<table align="center">"#,
             "权限状态由后台 Agent 实时检查。",
             "“检查中”和“Agent 不可用”都不同于“缺失”。",
-            "从“系统设置”返回后，Veloop 会重启 Agent 并刷新权限状态。",
+            "启动时以及控制应用每次重新激活时，Veloop 都会重启当前安装的 Agent 并刷新权限状态。",
+            "这也涵盖用户自行打开“系统设置”所做的权限更改。",
             "普通启动不会请求权限。",
             "仅在相应权限缺失时使用权限按钮。",
             "升级后可能需要在“系统设置”中重新启用 Veloop",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
+        XCTAssertFalse(readme.contains("从“系统设置”返回后"))
         XCTAssertFalse(readme.contains("可复现的公开构建"))
     }
 
@@ -77,7 +81,7 @@ final class ReleaseMetadataTests: XCTestCase {
         let sourceGuide = try text("Sources/README.md")
 
         XCTAssertTrue(sourceGuide.contains(
-            "an Agent restart followed by a bounded state refresh"
+            "Launch and every control-app activation trigger an Agent restart followed by a bounded state refresh"
         ))
         XCTAssertFalse(sourceGuide.contains("bounded Agent restart"))
     }
