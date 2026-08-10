@@ -36,6 +36,5 @@
 "error.updateFailed" = "无法保存此设置。";
 "error.clearFailed" = "无法清除剪贴板历史。";
 "error.permissionRequestFailed" = "无法刷新权限状态。";
-"error.restartFailed" = "无法重新启动 Veloop。";
 "error.registrationFailed" = "无法更改登录项设置。";
 "error.invalidLimit" = "每个上限都必须输入正整数。";

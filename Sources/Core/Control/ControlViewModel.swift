@@ -5,22 +5,6 @@ public enum ControlViewModelError: Equatable, Sendable {
     case updateFailed
     case clearFailed
     case permissionRequestFailed
-    case restartFailed
-}
-
-public struct AgentRetryPolicy: Equatable, Sendable {
-    public static let production = AgentRetryPolicy()
-
-    public let maximumAttempts: Int
-    public let delayNanoseconds: UInt64
-
-    public init(
-        maximumAttempts: Int = 30,
-        delayNanoseconds: UInt64 = 100_000_000
-    ) {
-        self.maximumAttempts = max(1, maximumAttempts)
-        self.delayNanoseconds = delayNanoseconds
-    }
 }
 
 public enum PermissionSyncState: Equatable, Sendable {
@@ -57,42 +41,22 @@ public final class ControlViewModel {
 
     private let agent: AgentControlling
     private let lifecycle: AgentLifecycleControlling
-    private let retryPolicy: AgentRetryPolicy
-    private let sleep: @Sendable (UInt64) async throws -> Void
     private let queue = DispatchQueue(label: "com.veloop.control", qos: .utility)
     private var launchSynchronizationInProgress = false
     private var synchronizationRevision: UInt64 = 0
 
     public init(
         agent: AgentControlling,
-        lifecycle: AgentLifecycleControlling,
-        retryPolicy: AgentRetryPolicy = .production,
-        sleep: @escaping @Sendable (UInt64) async throws -> Void = { nanoseconds in
-            try await Task.sleep(nanoseconds: nanoseconds)
-        }
+        lifecycle: AgentLifecycleControlling
     ) {
         self.agent = agent
         self.lifecycle = lifecycle
-        self.retryPolicy = retryPolicy
-        self.sleep = sleep
     }
 
     public func applicationDidBecomeActive() async {
         guard !Task.isCancelled else { return }
         guard !launchSynchronizationInProgress else { return }
-
-        let revision = beginSynchronization()
-        guard !shouldStop(revision: revision) else { return }
-        let restartResult: Result<Void, Error> = await offMain { [lifecycle] in
-            try lifecycle.restartRegisteredAgent()
-        }
-        guard !shouldStop(revision: revision) else { return }
-        guard case .success = restartResult else {
-            publishFailure(.restartFailed, revision: revision)
-            return
-        }
-
-        await reloadWithRetry(revision: revision)
+        await synchronizeAllowingRecovery()
     }
 
     public func synchronizeOnLaunch() async {
@@ -101,18 +65,7 @@ public final class ControlViewModel {
         launchSynchronizationInProgress = true
         defer { launchSynchronizationInProgress = false }
 
-        let revision = beginSynchronization()
-        guard !shouldStop(revision: revision) else { return }
-        let registrationResult: Result<Void, Error> = await offMain { [lifecycle] in
-            try lifecycle.restartRegisteredAgent()
-        }
-        guard !shouldStop(revision: revision) else { return }
-        guard case .success = registrationResult else {
-            publishFailure(.agentUnavailable, revision: revision)
-            return
-        }
-
-        await reloadWithRetry(revision: revision)
+        await synchronizeAllowingRecovery()
     }
 
     public func reload() async {
@@ -211,26 +164,33 @@ public final class ControlViewModel {
         }
     }
 
-    private func reloadWithRetry(revision: UInt64) async {
-        for attempt in 0..<retryPolicy.maximumAttempts {
-            guard !shouldStop(revision: revision) else { return }
-            let result = await offMain { [agent] in try agent.state() }
-            guard !shouldStop(revision: revision) else { return }
-            if case let .success(state) = result {
-                publishFresh(state, revision: revision)
-                return
-            }
-            if attempt + 1 < retryPolicy.maximumAttempts {
-                do {
-                    try await sleep(retryPolicy.delayNanoseconds)
-                } catch {
-                    stopLoadingIfCurrent(revision: revision)
-                    return
-                }
-                guard !shouldStop(revision: revision) else { return }
-            }
+    private func synchronizeAllowingRecovery() async {
+        let revision = beginSynchronization()
+        guard !shouldStop(revision: revision) else { return }
+        let fastResult = await offMain { [agent] in try agent.state() }
+        guard !shouldStop(revision: revision) else { return }
+        if case let .success(state) = fastResult {
+            publishFresh(state, revision: revision)
+            return
         }
-        publishFailure(.agentUnavailable, revision: revision)
+
+        let recoveryResult: Result<Void, Error> = await offMain { [lifecycle] in
+            try lifecycle.ensureRegisteredAndRunning()
+        }
+        guard !shouldStop(revision: revision) else { return }
+        guard case .success = recoveryResult else {
+            publishFailure(.agentUnavailable, revision: revision)
+            return
+        }
+
+        let recoveredState = await offMain { [agent] in try agent.state() }
+        guard !shouldStop(revision: revision) else { return }
+        switch recoveredState {
+        case let .success(state):
+            publishFresh(state, revision: revision)
+        case .failure:
+            publishFailure(.agentUnavailable, revision: revision)
+        }
     }
 
     private func beginSynchronization() -> UInt64 {

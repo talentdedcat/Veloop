@@ -38,7 +38,7 @@ final class AgentRegistrationControllerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: harness.launchAgentURL.path))
     }
 
-    func testLoadedCurrentRegistrationKickstartsWithoutReplacingApplication() throws {
+    func testLoadedUnresponsiveRegistrationIsForceKickstartedWithoutReplacingApplication() throws {
         let harness = try RegistrationHarness(statuses: [1, 0, 0, 0, 0, 0, 0])
         try harness.controller.ensureRegisteredAndRunning()
         harness.launchctl.removeCalls()
@@ -47,7 +47,7 @@ final class AgentRegistrationControllerTests: XCTestCase {
 
         XCTAssertEqual(harness.launchctl.calls, [
             ["print", harness.serviceTarget],
-            ["kickstart", harness.serviceTarget],
+            ["kickstart", "-k", harness.serviceTarget],
             ["print", harness.serviceTarget],
         ])
         XCTAssertEqual(try Data(contentsOf: harness.executableURL), Data("main-executable".utf8))

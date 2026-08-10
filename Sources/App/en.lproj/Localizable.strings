@@ -36,6 +36,5 @@
 "error.updateFailed" = "The setting could not be saved.";
 "error.clearFailed" = "Clipboard history could not be cleared.";
 "error.permissionRequestFailed" = "Permission status could not be refreshed.";
-"error.restartFailed" = "Veloop could not be restarted.";
 "error.registrationFailed" = "The login item setting could not be changed.";
 "error.invalidLimit" = "Enter a positive whole number for each limit.";

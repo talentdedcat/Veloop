@@ -18,16 +18,23 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertFalse(activation.contains("synchronizeOnLaunch"))
     }
 
-    func testModelRestartsCurrentAgentBeforeLaunchSynchronizationAndHasNoNoopBridge() throws {
+    func testModelQueriesFirstThenRecoversExactlyOnceWithoutPolling() throws {
         let model = try text("Sources/Core/Control/ControlViewModel.swift")
-        let synchronization = try functionBody(named: "synchronizeOnLaunch", in: model)
-        let restart = try XCTUnwrap(
-            synchronization.range(of: "lifecycle.restartRegisteredAgent()")
+        let synchronization = try functionBody(named: "synchronizeAllowingRecovery", in: model)
+        let fastState = try XCTUnwrap(synchronization.range(of: "try agent.state()"))
+        let recovery = try XCTUnwrap(
+            synchronization.range(of: "try lifecycle.ensureRegisteredAndRunning()")
         )
-        let reload = try XCTUnwrap(synchronization.range(of: "reloadWithRetry"))
+        let recoveredState = try XCTUnwrap(
+            synchronization.range(of: "let recoveredState")
+        )
 
-        XCTAssertLessThan(restart.lowerBound, reload.lowerBound)
-        XCTAssertFalse(synchronization.contains("lifecycle.ensureRegisteredAndRunning()"))
+        XCTAssertLessThan(fastState.lowerBound, recovery.lowerBound)
+        XCTAssertLessThan(recovery.lowerBound, recoveredState.lowerBound)
+        XCTAssertEqual(synchronization.components(separatedBy: "try agent.state()").count - 1, 2)
+        XCTAssertFalse(model.contains("Task.sleep"))
+        XCTAssertFalse(model.contains("retryPolicy"))
+        XCTAssertFalse(model.contains("restartRegisteredAgent"))
         XCTAssertFalse(model.contains("permissionRefreshPending"))
         XCTAssertFalse(model.contains("markPermissionRefreshPending"))
         XCTAssertTrue(synchronization.contains("publishFailure(.agentUnavailable"))
@@ -55,7 +62,6 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertFalse(preferenceRead.contains("lock.withLock"))
         for method in [
             "ensureRegisteredAndRunning",
-            "restartRegisteredAgent",
             "setStartAtLoginEnabled",
         ] {
             let body = try functionOrPropertyBody(named: method, in: registration)
@@ -81,30 +87,20 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         ))
     }
 
-    func testEnsureKickstartsWithoutKThenVerifiesLoaded() throws {
+    func testEnsureForceKickstartsOnlyLoadedUnresponsiveAgentThenWaitsForReadiness() throws {
         let registration = try text("Sources/Core/Agent/AgentRegistrationController.swift")
         let ensure = try functionBody(named: "ensureRegisteredAndRunningLocked", in: registration)
         let install = try XCTUnwrap(ensure.range(of: "installLaunchAgent()"))
-        let kickstart = try XCTUnwrap(ensure.range(
-            of: "requireSuccess([\"kickstart\", serviceTarget])"
-        ))
+        let kickstart = try XCTUnwrap(ensure.range(of: "[\"kickstart\", \"-k\", serviceTarget]"))
+        let readiness = try XCTUnwrap(ensure.range(of: "waitForReadiness()"))
         let verification = try XCTUnwrap(ensure.range(
             of: "requireSuccess([\"print\", serviceTarget])"
         ))
 
         XCTAssertLessThan(install.lowerBound, kickstart.lowerBound)
-        XCTAssertLessThan(kickstart.lowerBound, verification.lowerBound)
-    }
-
-    func testRestartEnsuresRegistrationThenUsesExactLaunchctlKickstart() throws {
-        let registration = try text("Sources/Core/Agent/AgentRegistrationController.swift")
-        let restart = try functionBody(named: "restartRegisteredAgent", in: registration)
-        let ensure = try XCTUnwrap(restart.range(of: "ensureRegisteredAndRunningLocked()"))
-        let kickstart = try XCTUnwrap(restart.range(
-            of: "requireSuccess([\"kickstart\", \"-k\", serviceTarget])"
-        ))
-
-        XCTAssertLessThan(ensure.lowerBound, kickstart.lowerBound)
+        XCTAssertLessThan(kickstart.lowerBound, readiness.lowerBound)
+        XCTAssertLessThan(readiness.lowerBound, verification.lowerBound)
+        XCTAssertFalse(registration.contains("restartRegisteredAgent"))
         XCTAssertFalse(registration.contains("NSWorkspace"))
         XCTAssertFalse(registration.contains("launchApplication"))
     }

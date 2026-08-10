@@ -473,7 +473,6 @@ final class ControlViewController: NSViewController {
         case .updateFailed: return "error.updateFailed"
         case .clearFailed: return "error.clearFailed"
         case .permissionRequestFailed: return "error.permissionRequestFailed"
-        case .restartFailed: return "error.restartFailed"
         }
     }
 

@@ -112,6 +112,20 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertTrue(request.contains("return encodedResponse(status)"))
     }
 
+    func testControlStateSynchronizesInputFromTheSamePermissionSnapshot() throws {
+        let runtime = try source("Sources/Core/Agent/VeloopAgentRuntime.swift")
+        let start = try XCTUnwrap(runtime.range(of: "private func controlState()"))
+        let end = try XCTUnwrap(runtime.range(
+            of: "\n    private func applyControlUpdate",
+            range: start.lowerBound..<runtime.endIndex
+        ))
+        let body = runtime[start.lowerBound..<end.lowerBound]
+
+        XCTAssertEqual(body.components(separatedBy: "permissions.status()").count - 1, 1)
+        XCTAssertTrue(body.contains("synchronizeInputSubsystemOnMain(permissionStatus)"))
+        XCTAssertTrue(body.contains("permissions: permissionStatus"))
+    }
+
     func testRuntimeNoLongerOwnsAgentRestart() throws {
         let runtime = try source("Sources/Core/Agent/VeloopAgentRuntime.swift")
 

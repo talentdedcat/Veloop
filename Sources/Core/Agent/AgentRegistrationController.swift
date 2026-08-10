@@ -4,6 +4,8 @@ import ServiceManagement
 public final class AgentRegistrationController: AgentLifecycleControlling, @unchecked Sendable {
     typealias Launchctl = @Sendable ([String]) throws -> Int32
     typealias UnregisterLegacyService = @Sendable () throws -> Void
+    typealias ResponsivenessProbe = @Sendable () -> Bool
+    typealias ReadinessWait = @Sendable () -> Bool
 
     private static let desiredRegistrationKey = "veloop.startAtLogin"
     private static let legacyMigrationKey = "veloop.didMigrateLegacyLoginItem"
@@ -16,6 +18,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     private let currentBuild: String
     private let unregisterLegacyService: UnregisterLegacyService
     private let launchctl: Launchctl
+    private let isAgentResponsive: ResponsivenessProbe
+    private let waitForReadiness: ReadinessWait
     private let lock = NSLock()
     private let preferenceQueue = DispatchQueue(
         label: "com.veloop.agent-registration-preference",
@@ -23,6 +27,16 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     )
 
     public convenience init() {
+        let storagePaths = try? StoragePaths.userDefault()
+        let probe: ResponsivenessProbe = {
+            guard let socketURL = storagePaths?.socket,
+                  let response = try? AgentClient(socketURL: socketURL).send(
+                    AgentRequest(command: "control-state", arguments: [])
+                  ) else {
+                return false
+            }
+            return response.succeeded
+        }
         self.init(
             defaults: .standard,
             fileManager: .default,
@@ -34,6 +48,18 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             },
             launchctl: { arguments in
                 try AgentRegistrationController.runLaunchctl(arguments)
+            },
+            isAgentResponsive: probe,
+            waitForReadiness: {
+                guard let storagePaths else { return false }
+                try? FileManager.default.createDirectory(
+                    at: storagePaths.root,
+                    withIntermediateDirectories: true
+                )
+                return AgentReadinessWaiter(
+                    socketDirectoryURL: storagePaths.root,
+                    probe: probe
+                ).wait()
             }
         )
     }
@@ -45,7 +71,9 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         applicationBundleURL: URL? = nil,
         currentBuild: String? = nil,
         unregisterLegacyService: @escaping UnregisterLegacyService,
-        launchctl: @escaping Launchctl
+        launchctl: @escaping Launchctl,
+        isAgentResponsive: @escaping ResponsivenessProbe = { false },
+        waitForReadiness: @escaping ReadinessWait = { true }
     ) {
         let appBundle = applicationBundleURL
             ?? URL(fileURLWithPath: "/Applications/Veloop.app", isDirectory: true)
@@ -60,6 +88,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             ?? "unknown"
         self.unregisterLegacyService = unregisterLegacyService
         self.launchctl = launchctl
+        self.isAgentResponsive = isAgentResponsive
+        self.waitForReadiness = waitForReadiness
     }
 
     public var isStartAtLoginEnabled: Bool {
@@ -81,11 +111,19 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
 
     private func ensureRegisteredAndRunningLocked() throws {
         try validateApplicationIdentity()
+        if isAgentResponsive() { return }
         try migrateLegacyLoginItemIfNeeded()
         let shouldRemoveLaunchAgent = !startAtLoginPreference
         do {
-            try installLaunchAgent()
-            try requireSuccess(["kickstart", serviceTarget])
+            let requiresForcedKickstart = try installLaunchAgent()
+            try requireSuccess(
+                requiresForcedKickstart
+                    ? ["kickstart", "-k", serviceTarget]
+                    : ["kickstart", serviceTarget]
+            )
+            guard waitForReadiness() else {
+                throw AgentRegistrationError.readinessTimedOut
+            }
             try requireSuccess(["print", serviceTarget])
         } catch {
             if shouldRemoveLaunchAgent {
@@ -103,7 +141,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             try validateApplicationIdentity()
             try migrateLegacyLoginItemIfNeeded()
             if enabled {
-                try installLaunchAgent()
+                _ = try installLaunchAgent()
                 try requireSuccess(["kickstart", serviceTarget])
                 try requireSuccess(["print", serviceTarget])
             } else {
@@ -127,13 +165,6 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
     }
 
-    public func restartRegisteredAgent() throws {
-        try lock.withLock {
-            try ensureRegisteredAndRunningLocked()
-            try requireSuccess(["kickstart", "-k", serviceTarget])
-        }
-    }
-
     private func validateApplicationIdentity() throws {
         guard fileManager.fileExists(atPath: agentExecutableURL.path) else {
             throw AgentRegistrationError.invalidApplication
@@ -148,7 +179,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
     }
 
-    private func installLaunchAgent() throws {
+    private func installLaunchAgent() throws -> Bool {
         let data = try launchAgentData()
         var loaded = isLoaded
         if (try? Data(contentsOf: launchAgentURL)) != data {
@@ -165,6 +196,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         if !loaded {
             try requireSuccess(["bootstrap", domainTarget, launchAgentURL.path])
         }
+        return loaded
     }
 
     private var domainTarget: String { "gui/\(getuid())" }
@@ -241,6 +273,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
 private enum AgentRegistrationError: Error {
     case invalidApplication
     case launchctlFailed(Int32)
+    case readinessTimedOut
 }
 
 private extension NSLock {

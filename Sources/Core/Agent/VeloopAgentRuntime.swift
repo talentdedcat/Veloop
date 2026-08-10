@@ -292,13 +292,26 @@ public final class VeloopAgentRuntime {
         let currentConfiguration = configuration
         let currentEnabled = enabled
         stateLock.unlock()
+        let permissionStatus = permissions.status()
+        synchronizeInputSubsystemOnMain(permissionStatus)
         return ControlState(
             enabled: currentEnabled,
             historyCount: historyStore.count,
             storageBytes: historyStore.storageBytes,
             configuration: currentConfiguration,
-            permissions: permissions.status()
+            permissions: permissionStatus
         )
+    }
+
+    private func synchronizeInputSubsystemOnMain(_ permissionStatus: EventPermissionStatus) {
+        let synchronize = { [weak self] in
+            self?.synchronizeInputSubsystem(listenEvents: permissionStatus.listenEvents)
+        }
+        if Thread.isMainThread {
+            synchronize()
+        } else {
+            DispatchQueue.main.sync(execute: synchronize)
+        }
     }
 
     private func applyControlUpdate(arguments: [String]) -> AgentResponse {
