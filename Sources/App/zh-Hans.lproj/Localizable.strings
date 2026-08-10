@@ -38,3 +38,5 @@
 "error.permissionRequestFailed" = "无法刷新权限状态。";
 "error.registrationFailed" = "无法更改登录项设置。";
 "error.invalidLimit" = "每个上限都必须输入正整数。";
+"setup.error.title" = "Veloop 无法完成设置";
+"setup.error.message" = "请将 Veloop.app 移到“应用程序”文件夹，然后重新打开。";

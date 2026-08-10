@@ -12,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         subsystem: "com.veloop.app",
         category: "permission-identity-migration"
     )
+    private static let setupLogger = Logger(
+        subsystem: "com.veloop.app",
+        category: "application-setup"
+    )
 
     private let paletteInputSourceInstaller = PaletteInputSourceInstaller()
     private let agentRegistrationController = AgentRegistrationController()
@@ -41,6 +45,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Self.migrationLogger.error(
                 "Permission identity migration failed type=\(errorType, privacy: .public)"
             )
+            NSApplication.shared.terminate(nil)
+            return
+        }
+
+        do {
+            let bundledWatcher = Bundle.main.bundleURL.appendingPathComponent(
+                "Contents/Resources/VeloopUninstallWatcher"
+            )
+            try UninstallWatcherInstaller(
+                bundledExecutableURL: bundledWatcher,
+                launchctl: { arguments in
+                    try Self.runLaunchctl(arguments)
+                }
+            ).install()
+        } catch {
+            let errorType = String(reflecting: type(of: error))
+            Self.setupLogger.error(
+                "Uninstall watcher setup failed type=\(errorType, privacy: .public)"
+            )
+            let alert = NSAlert()
+            alert.alertStyle = .critical
+            alert.messageText = localizationController.string("setup.error.title")
+            alert.informativeText = localizationController.string("setup.error.message")
+            alert.runModal()
             NSApplication.shared.terminate(nil)
             return
         }
@@ -92,6 +120,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "Palette installation failed type=\(errorType, privacy: .public)"
             )
         }
+    }
+
+    nonisolated private static func runLaunchctl(_ arguments: [String]) throws -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 }
 

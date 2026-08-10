@@ -18,6 +18,30 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertFalse(activation.contains("synchronizeOnLaunch"))
     }
 
+    func testAppInstallsUninstallWatcherAfterIdentityMigrationBeforeDisplayingWindow() throws {
+        let delegate = try text("Sources/App/AppDelegate.swift")
+        let launch = try functionBody(named: "applicationDidFinishLaunching", in: delegate)
+        let migration = try XCTUnwrap(launch.range(of: "try migrator.migrateIfNeeded()"))
+        let watcher = try XCTUnwrap(launch.range(of: "try UninstallWatcherInstaller("))
+        let palette = try XCTUnwrap(launch.range(of: "ensurePaletteInstalled()"))
+        let window = try XCTUnwrap(launch.range(of: "controller.showWindow(nil)"))
+
+        XCTAssertLessThan(migration.lowerBound, watcher.lowerBound)
+        XCTAssertLessThan(watcher.lowerBound, palette.lowerBound)
+        XCTAssertLessThan(palette.lowerBound, window.lowerBound)
+        XCTAssertTrue(launch.contains("Contents/Resources/VeloopUninstallWatcher"))
+        XCTAssertTrue(launch.contains("alert.runModal()"))
+    }
+
+    func testPaletteDefersCurrentInstallCleanupToPlainWatcher() throws {
+        let palette = try text("Sources/Palette/main.m")
+
+        XCTAssertTrue(palette.contains("VeloopUninstallWatcherPath()"))
+        XCTAssertTrue(palette.contains("com.veloop.uninstall-watcher"))
+        XCTAssertTrue(palette.contains("Library/LaunchAgents/com.veloop.uninstall-watcher.plist"))
+        XCTAssertTrue(palette.contains("stringByAppendingPathComponent:@\"UninstallWatcher\""))
+    }
+
     func testModelQueriesFirstThenRecoversExactlyOnceWithoutPolling() throws {
         let model = try text("Sources/Core/Control/ControlViewModel.swift")
         let synchronization = try functionBody(named: "synchronizeAllowingRecovery", in: model)

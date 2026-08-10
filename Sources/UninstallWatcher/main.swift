@@ -1,3 +1,10 @@
-import Darwin
+import Foundation
+import VeloopCore
 
-Darwin.exit(0)
+do {
+    let watcher = try InstalledAppWatcher.live()
+    try watcher.start()
+    RunLoop.main.run()
+} catch {
+    Darwin.exit(1)
+}

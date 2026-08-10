@@ -16,6 +16,7 @@ public struct VeloopCleanupPaths: Sendable {
     public let watcherReceipt: URL
     public let agentLaunchAgent: URL
     public let watcherLaunchAgent: URL
+    public let installedApplicationBundle: URL
     public let paletteBundle: URL
     public let sharedAgentBundle: URL
     public let userAgentBundle: URL
@@ -53,6 +54,10 @@ public struct VeloopCleanupPaths: Sendable {
         )
         watcherLaunchAgent = library.appendingPathComponent(
             "LaunchAgents/com.veloop.uninstall-watcher.plist"
+        )
+        installedApplicationBundle = applicationsDirectory.appendingPathComponent(
+            "Veloop.app",
+            isDirectory: true
         )
         paletteBundle = library.appendingPathComponent(
             "Input Methods/VeloopPalette.app",

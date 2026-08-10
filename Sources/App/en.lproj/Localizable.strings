@@ -38,3 +38,5 @@
 "error.permissionRequestFailed" = "Permission status could not be refreshed.";
 "error.registrationFailed" = "The login item setting could not be changed.";
 "error.invalidLimit" = "Enter a positive whole number for each limit.";
+"setup.error.title" = "Veloop could not finish setup";
+"setup.error.message" = "Move Veloop.app to Applications, then open it again.";

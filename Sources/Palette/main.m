@@ -18,6 +18,11 @@ static NSString *VeloopHostMarkerPath(void) {
     return [VeloopSupportPath() stringByAppendingPathComponent:@"palette-host-path"];
 }
 
+static NSString *VeloopUninstallWatcherPath(void) {
+    return [VeloopSupportPath()
+        stringByAppendingPathComponent:@"UninstallWatcher/VeloopUninstallWatcher"];
+}
+
 static NSString *VeloopRecordedHostPath(void) {
     NSString *path = [NSString stringWithContentsOfFile:VeloopHostMarkerPath()
                                                 encoding:NSUTF8StringEncoding
@@ -51,6 +56,11 @@ static TISInputSourceRef VeloopInstalledInputSource(void) {
 }
 
 static void VeloopRemoveInstalledState(void) {
+    // The plain watcher owns targeted TCC reset and exact-path cleanup on current installs.
+    if ([NSFileManager.defaultManager fileExistsAtPath:VeloopUninstallWatcherPath()]) {
+        exit(0);
+    }
+
     TISInputSourceRef source = VeloopInstalledInputSource();
     if (source != nil) {
         TISDeselectInputSource(source);
@@ -58,20 +68,27 @@ static void VeloopRemoveInstalledState(void) {
         CFRelease(source);
     }
 
-    NSString *serviceTarget = [NSString stringWithFormat:@"gui/%u/com.veloop.service", getuid()];
-    NSTask *bootout = [[NSTask alloc] init];
-    bootout.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
-    bootout.arguments = @[@"bootout", serviceTarget];
-    bootout.standardOutput = NSFileHandle.fileHandleWithNullDevice;
-    bootout.standardError = NSFileHandle.fileHandleWithNullDevice;
-    [bootout launchAndReturnError:nil];
-    [bootout waitUntilExit];
+    NSArray<NSString *> *serviceTargets = @[
+        [NSString stringWithFormat:@"gui/%u/com.veloop.service", getuid()],
+        [NSString stringWithFormat:@"gui/%u/com.veloop.uninstall-watcher", getuid()],
+    ];
+    for (NSString *serviceTarget in serviceTargets) {
+        NSTask *bootout = [[NSTask alloc] init];
+        bootout.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
+        bootout.arguments = @[@"bootout", serviceTarget];
+        bootout.standardOutput = NSFileHandle.fileHandleWithNullDevice;
+        bootout.standardError = NSFileHandle.fileHandleWithNullDevice;
+        [bootout launchAndReturnError:nil];
+        [bootout waitUntilExit];
+    }
 
     NSString *home = NSHomeDirectory();
     NSArray<NSString *> *paths = @[
         [home stringByAppendingPathComponent:@"Library/Input Methods/VeloopPalette.app"],
         [home stringByAppendingPathComponent:@"Library/LaunchAgents/com.veloop.service.plist"],
+        [home stringByAppendingPathComponent:@"Library/LaunchAgents/com.veloop.uninstall-watcher.plist"],
         VeloopHostMarkerPath(),
+        [VeloopSupportPath() stringByAppendingPathComponent:@"UninstallWatcher"],
     ];
     for (NSString *path in paths) {
         [NSFileManager.defaultManager removeItemAtPath:path error:nil];

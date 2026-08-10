@@ -2,7 +2,7 @@ import AppKit
 import Darwin
 import Foundation
 
-public enum VeloopCleanupScope: Sendable {
+public enum VeloopCleanupScope: Equatable, Sendable {
     case preserveUserData
     case purgeUserData
 }
