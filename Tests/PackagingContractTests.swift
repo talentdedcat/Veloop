@@ -121,25 +121,27 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertFalse(verifier.contains("~/"))
     }
 
-    func testCaskNormalUninstallDeletesRuntimeManagedHelpers() throws {
+    func testCaskNormalUninstallRunsPurgeBeforeExactPathSafetyNets() throws {
         let cask = try text("Casks/veloop.rb")
         let uninstallStart = try XCTUnwrap(cask.range(of: "  uninstall "))
         let zapStart = try XCTUnwrap(
             cask.range(of: "\n  zap ", range: uninstallStart.lowerBound..<cask.endIndex)
         )
         let uninstall = cask[uninstallStart.lowerBound..<zapStart.lowerBound]
-        let zap = cask[zapStart.lowerBound...]
         let runtimePaths = [
             "/Applications/Veloop Agent.app",
             "~/Applications/Veloop Agent.app",
             "~/Library/Input Methods/VeloopPalette.app",
             "~/Library/LaunchAgents/com.veloop.service.plist",
+            "~/Library/LaunchAgents/com.veloop.uninstall-watcher.plist",
+            "~/Library/Application Support/Veloop",
         ]
 
+        XCTAssertTrue(uninstall.contains("uninstall\", \"--purge"))
+        XCTAssertTrue(uninstall.contains("must_succeed: true"))
         XCTAssertTrue(uninstall.contains("delete:"))
         for path in runtimePaths {
             XCTAssertTrue(uninstall.contains(path), "normal uninstall must delete \(path)")
-            XCTAssertFalse(zap.contains(path), "runtime helper must not be zap-only: \(path)")
         }
     }
 

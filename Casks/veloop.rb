@@ -14,24 +14,48 @@ cask "veloop" do
   app "Veloop.app"
   binary "#{appdir}/Veloop.app/Contents/Resources/veloopctl"
 
-  uninstall launchctl: "com.veloop.service",
+  uninstall launchctl: [
+              "com.veloop.service",
+              "com.veloop.uninstall-watcher",
+            ],
             quit:      "com.veloop.app",
             signal:    [
               ["TERM", "com.veloop.service"],
+              ["TERM", "com.veloop.uninstall-watcher"],
               ["TERM", "com.talentdedcat.veloop.palette"],
             ],
+            script:    {
+              executable: "#{appdir}/Veloop.app/Contents/Resources/veloopctl",
+              args:       ["uninstall", "--purge"],
+              must_succeed: true,
+            },
             delete:    [
               "/Applications/Veloop Agent.app",
               "~/Applications/Veloop Agent.app",
+              "~/Library/Application Support/Veloop",
+              "~/Library/Caches/com.veloop.app",
+              "~/Library/Caches/com.veloop.diagnostics.carethost",
+              "~/Library/Caches/com.veloop.service",
               "~/Library/Input Methods/VeloopPalette.app",
               "~/Library/LaunchAgents/com.veloop.service.plist",
+              "~/Library/LaunchAgents/com.veloop.uninstall-watcher.plist",
+              "~/Library/Preferences/com.veloop.app.plist",
+              "~/Library/Preferences/com.veloop.service.plist",
+              "~/Library/Preferences/com.veloop.shared.plist",
+              "~/Library/Saved Application State/com.veloop.app.savedState",
+              "~/Library/WebKit/com.veloop.diagnostics.carethost",
             ]
 
   zap trash: [
+    "/Applications/Veloop Agent.app",
+    "~/Applications/Veloop Agent.app",
     "~/Library/Application Support/Veloop",
     "~/Library/Caches/com.veloop.app",
     "~/Library/Caches/com.veloop.diagnostics.carethost",
     "~/Library/Caches/com.veloop.service",
+    "~/Library/Input Methods/VeloopPalette.app",
+    "~/Library/LaunchAgents/com.veloop.service.plist",
+    "~/Library/LaunchAgents/com.veloop.uninstall-watcher.plist",
     "~/Library/Preferences/com.veloop.app.plist",
     "~/Library/Preferences/com.veloop.service.plist",
     "~/Library/Preferences/com.veloop.shared.plist",

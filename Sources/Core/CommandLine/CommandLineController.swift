@@ -9,10 +9,16 @@ struct CommandLineResult: Equatable {
 final class CommandLineController {
     private let requester: AgentRequesting
     private let openDataDirectory: () -> Bool
+    private let uninstallPurge: () throws -> Void
 
-    init(requester: AgentRequesting, openDataDirectory: @escaping () -> Bool) {
+    init(
+        requester: AgentRequesting,
+        openDataDirectory: @escaping () -> Bool,
+        uninstallPurge: @escaping () throws -> Void
+    ) {
         self.requester = requester
         self.openDataDirectory = openDataDirectory
+        self.uninstallPurge = uninstallPurge
     }
 
     func run(arguments: [String]) -> CommandLineResult {
@@ -26,6 +32,17 @@ final class CommandLineController {
             return openDataDirectory()
                 ? success("")
                 : failure("Could not open the Veloop data directory.")
+        }
+        if command == "uninstall" {
+            guard arguments == ["uninstall", "--purge"] else {
+                return usage()
+            }
+            do {
+                try uninstallPurge()
+                return success("")
+            } catch {
+                return failure("Veloop could not be completely removed.")
+            }
         }
 
         let request: AgentRequest
@@ -72,7 +89,7 @@ final class CommandLineController {
         CommandLineResult(
             exitCode: 2,
             standardOutput: "",
-            standardError: "Usage: veloopctl status|pause|resume|clear|count|storage|doctor|config get|config set <key> <value>|open-data-directory|restart|version\n"
+            standardError: "Usage: veloopctl status|pause|resume|clear|count|storage|doctor|config get|config set <key> <value>|open-data-directory|restart|uninstall --purge|version\n"
         )
     }
 }

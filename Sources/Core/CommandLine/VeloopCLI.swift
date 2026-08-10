@@ -10,6 +10,12 @@ public enum VeloopCLI {
                 openDataDirectory: {
                     try? paths.createDirectories()
                     return NSWorkspace.shared.open(paths.root)
+                },
+                uninstallPurge: {
+                    try VeloopCleanupController.live().cleanup(
+                        scope: .purgeUserData,
+                        includeWatcher: true
+                    )
                 }
             )
             let result = controller.run(arguments: arguments)
