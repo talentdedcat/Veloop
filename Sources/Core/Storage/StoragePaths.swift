@@ -10,6 +10,10 @@ struct StoragePaths {
     var corrupted: URL { root.appendingPathComponent("corrupted", isDirectory: true) }
     var socket: URL { root.appendingPathComponent("agent.sock") }
     var processLock: URL { root.appendingPathComponent("agent.lock") }
+    var permissionIdentityReceipt: URL { root.appendingPathComponent("permission-identity.json") }
+    var uninstallWatcherDirectory: URL {
+        root.appendingPathComponent("UninstallWatcher", isDirectory: true)
+    }
 
     static func userDefault(fileManager: FileManager = .default) throws -> StoragePaths {
         let applicationSupport = try fileManager.url(
