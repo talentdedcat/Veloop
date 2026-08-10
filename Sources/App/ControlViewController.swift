@@ -417,7 +417,6 @@ final class ControlViewController: NSViewController {
     private func openSystemSettings(_ pane: String, permissionGroup: EventPermissionGroup) {
         guard model.permissionSyncState.displayState(for: permissionGroup) == .missing else { return }
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") else { return }
-        model.markPermissionRefreshPending()
         NSWorkspace.shared.open(url)
         Task { await model.requestPermissions(permissionGroup) }
     }

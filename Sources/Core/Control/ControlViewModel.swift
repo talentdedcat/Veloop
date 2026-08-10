@@ -60,7 +60,6 @@ public final class ControlViewModel {
     private let retryPolicy: AgentRetryPolicy
     private let sleep: @Sendable (UInt64) async throws -> Void
     private let queue = DispatchQueue(label: "com.veloop.control", qos: .utility)
-    private var permissionRefreshPending = false
     private var launchSynchronizationInProgress = false
     private var synchronizationRevision: UInt64 = 0
 
@@ -78,19 +77,10 @@ public final class ControlViewModel {
         self.sleep = sleep
     }
 
-    public func markPermissionRefreshPending() {
-        permissionRefreshPending = true
-    }
-
     public func applicationDidBecomeActive() async {
         guard !Task.isCancelled else { return }
-        guard permissionRefreshPending else {
-            guard !launchSynchronizationInProgress else { return }
-            await reload()
-            return
-        }
+        guard !launchSynchronizationInProgress else { return }
 
-        permissionRefreshPending = false
         let revision = beginSynchronization()
         guard !shouldStop(revision: revision) else { return }
         let restartResult: Result<Void, Error> = await offMain { [lifecycle] in
@@ -114,7 +104,7 @@ public final class ControlViewModel {
         let revision = beginSynchronization()
         guard !shouldStop(revision: revision) else { return }
         let registrationResult: Result<Void, Error> = await offMain { [lifecycle] in
-            try lifecycle.ensureRegisteredAndRunning()
+            try lifecycle.restartRegisteredAgent()
         }
         guard !shouldStop(revision: revision) else { return }
         guard case .success = registrationResult else {
