@@ -72,6 +72,77 @@ final class ImmediatePermissionRefreshTests: XCTestCase {
     }
 
     @MainActor
+    func testIntermediateActivationKeepsPermissionRefreshPendingUntilGrantAppears() async {
+        let calls = RefreshCallRecorder()
+        let missing = ControlState(
+            enabled: true,
+            historyCount: 1,
+            storageBytes: 1,
+            configuration: .default,
+            permissions: EventPermissionStatus(
+                listenEvents: false,
+                postEvents: false,
+                accessibility: false
+            )
+        )
+        let granted = refreshState(enabled: true)
+        let agent = RefreshAgent(
+            calls: calls,
+            results: [
+                .success(missing),
+                .success(missing),
+                .success(missing),
+                .success(granted),
+            ],
+            permissionResults: [.success(missing.permissions)]
+        )
+        let lifecycle = RefreshLifecycle(calls: calls)
+        let model = ControlViewModel(agent: agent, lifecycle: lifecycle)
+
+        await model.synchronizeOnLaunch()
+        await model.requestPermissions(.inputMonitoring)
+        await model.applicationDidBecomeActive()
+        XCTAssertEqual(model.state, missing)
+
+        await model.applicationDidBecomeActive()
+
+        XCTAssertEqual(lifecycle.restartCount, 2)
+        XCTAssertEqual(model.state, granted)
+    }
+
+    @MainActor
+    func testCancelledPermissionTripStopsForceRestartingAfterThreeActivations() async {
+        let calls = RefreshCallRecorder()
+        let missing = ControlState(
+            enabled: true,
+            historyCount: 1,
+            storageBytes: 1,
+            configuration: .default,
+            permissions: EventPermissionStatus(
+                listenEvents: false,
+                postEvents: false,
+                accessibility: false
+            )
+        )
+        let agent = RefreshAgent(
+            calls: calls,
+            results: Array(repeating: .success(missing), count: 6),
+            permissionResults: [.success(missing.permissions)]
+        )
+        let lifecycle = RefreshLifecycle(calls: calls)
+        let model = ControlViewModel(agent: agent, lifecycle: lifecycle)
+
+        await model.synchronizeOnLaunch()
+        await model.requestPermissions(.inputMonitoring)
+        for _ in 0..<4 {
+            await model.applicationDidBecomeActive()
+        }
+
+        XCTAssertEqual(lifecycle.restartCount, 3)
+        XCTAssertEqual(model.state, missing)
+    }
+
+    @MainActor
     func testFailedFastRequestRecoversOnceThenPublishesFreshState() async {
         let calls = RefreshCallRecorder()
         let expected = refreshState(enabled: true)
