@@ -23,8 +23,9 @@ final class ControlViewModelTests: XCTestCase {
     @MainActor
     func testEveryOrdinaryActivationPublishesFreshStateWithoutRestartingHealthyAgent() async {
         let calls = LockedCalls()
-        let first = controlState(enabled: false)
-        let second = controlState(enabled: true)
+        let granted = permissionStatus(listen: true, post: true, accessibility: true)
+        let first = controlState(enabled: false, permissions: granted)
+        let second = controlState(enabled: true, permissions: granted)
         let agent = ScriptedAgent(calls: calls, states: [.success(first), .success(second)])
         let lifecycle = ScriptedLifecycle(calls: calls)
         let model = makeModel(agent: agent, lifecycle: lifecycle)
@@ -54,9 +55,10 @@ final class ControlViewModelTests: XCTestCase {
 
     @MainActor
     func testLaunchAndOrdinaryActivationNeverRequestPermissions() async {
+        let granted = permissionStatus(listen: true, post: true, accessibility: true)
         let agent = ScriptedAgent(states: [
-            .success(controlState(enabled: false)),
-            .success(controlState(enabled: true)),
+            .success(controlState(enabled: false, permissions: granted)),
+            .success(controlState(enabled: true, permissions: granted)),
         ])
         let lifecycle = ScriptedLifecycle()
         let model = makeModel(agent: agent, lifecycle: lifecycle)

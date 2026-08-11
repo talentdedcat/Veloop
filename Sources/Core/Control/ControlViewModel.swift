@@ -33,8 +33,6 @@ public enum PermissionDisplayState: Equatable, Sendable {
 
 @MainActor
 public final class ControlViewModel {
-    private static let maximumPermissionRefreshAttempts = 3
-
     public private(set) var state: ControlState?
     public private(set) var permissionSyncState: PermissionSyncState = .checking
     public private(set) var inlineError: ControlViewModelError?
@@ -45,9 +43,6 @@ public final class ControlViewModel {
     private let lifecycle: AgentLifecycleControlling
     private let queue = DispatchQueue(label: "com.veloop.control", qos: .utility)
     private var launchSynchronizationInProgress = false
-    private var permissionRefreshPending = false
-    private var pendingPermissionGroup: EventPermissionGroup?
-    private var permissionRefreshAttemptsRemaining = 0
     private var synchronizationRevision: UInt64 = 0
 
     public init(
@@ -61,14 +56,10 @@ public final class ControlViewModel {
     public func applicationDidBecomeActive() async {
         guard !Task.isCancelled else { return }
         guard !launchSynchronizationInProgress else { return }
-        if permissionRefreshPending,
-           let group = pendingPermissionGroup,
-           permissionRefreshAttemptsRemaining > 0 {
-            await restartAgentForPermissionRefresh(group)
-            return
-        }
-        clearPendingPermissionRefresh()
         await synchronizeAllowingRecovery()
+        guard case let .available(permissions) = permissionSyncState,
+              !permissions.canCycle else { return }
+        await restartAgentForPermissionRefresh()
     }
 
     public func synchronizeOnLaunch() async {
@@ -163,15 +154,12 @@ public final class ControlViewModel {
             publishFailure(.permissionRequestFailed, revision: revision)
             return
         }
-        markPermissionRefreshPending(for: group)
-
         guard !shouldStop(revision: revision) else { return }
         let stateResult = await offMain { [agent] in try agent.state() }
         guard !shouldStop(revision: revision) else { return }
         switch stateResult {
         case let .success(state):
             publishFresh(state, revision: revision)
-            updatePendingPermissionRefresh(after: state.permissions, for: group)
         case .failure:
             publishFailure(.permissionRequestFailed, revision: revision)
         }
@@ -206,8 +194,7 @@ public final class ControlViewModel {
         }
     }
 
-    private func restartAgentForPermissionRefresh(_ group: EventPermissionGroup) async {
-        permissionRefreshAttemptsRemaining -= 1
+    private func restartAgentForPermissionRefresh() async {
         let revision = beginSynchronization()
         guard !shouldStop(revision: revision) else { return }
         let restartResult: Result<Void, Error> = await offMain { [lifecycle] in
@@ -216,7 +203,6 @@ public final class ControlViewModel {
         guard !shouldStop(revision: revision) else { return }
         guard case .success = restartResult else {
             publishFailure(.agentUnavailable, revision: revision)
-            clearPendingPermissionRefreshIfExhausted(for: group)
             return
         }
 
@@ -225,39 +211,9 @@ public final class ControlViewModel {
         switch stateResult {
         case let .success(state):
             publishFresh(state, revision: revision)
-            updatePendingPermissionRefresh(after: state.permissions, for: group)
         case .failure:
             publishFailure(.agentUnavailable, revision: revision)
-            clearPendingPermissionRefreshIfExhausted(for: group)
         }
-    }
-
-    private func markPermissionRefreshPending(for group: EventPermissionGroup) {
-        permissionRefreshPending = true
-        pendingPermissionGroup = group
-        permissionRefreshAttemptsRemaining = Self.maximumPermissionRefreshAttempts
-    }
-
-    private func updatePendingPermissionRefresh(
-        after permissions: EventPermissionStatus,
-        for group: EventPermissionGroup
-    ) {
-        guard pendingPermissionGroup == group else { return }
-        if permissions.isAllowed(for: group) || permissionRefreshAttemptsRemaining == 0 {
-            clearPendingPermissionRefresh()
-        }
-    }
-
-    private func clearPendingPermissionRefresh() {
-        permissionRefreshPending = false
-        pendingPermissionGroup = nil
-        permissionRefreshAttemptsRemaining = 0
-    }
-
-    private func clearPendingPermissionRefreshIfExhausted(for group: EventPermissionGroup) {
-        guard pendingPermissionGroup == group,
-              permissionRefreshAttemptsRemaining == 0 else { return }
-        clearPendingPermissionRefresh()
     }
 
     private func beginSynchronization() -> UInt64 {

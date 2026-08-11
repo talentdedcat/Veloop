@@ -99,7 +99,7 @@ Veloop.app is the only permission-bearing Veloop application. No separate Veloop
 
 Because a changed ad-hoc binary has a new code hash, macOS cannot safely transfer the old grant to that binary. When Veloop detects a changed installed executable, it clears stale Veloop permission records before starting the new Agent. Re-enable both permissions once after an ad-hoc binary update; this removes the misleading case where an old Veloop row appears enabled but the current binary is denied.
 
-On ordinary launch and activation, Veloop queries the healthy Agent first without restarting it. Socket operations have a 200 ms per-phase deadline, and recovery runs only after that query fails. After a permission button opens System Settings, returning to Veloop deliberately restarts only the Agent once, waits for its new socket, and reads the fresh permission state immediately. This restart is required because macOS applies a newly added Input Monitoring grant to a new process; the Veloop control app stays open.
+On every activation, Veloop queries the healthy Agent first without restarting it. Socket operations have a 200 ms per-phase deadline, and recovery runs only after that query fails. If the returned state is still missing either permission, Veloop restarts only the Agent once, waits for its new socket, and reads the fresh permission state immediately. This also detects changes made directly in System Settings because macOS applies a newly added Input Monitoring grant to a new process; a fully authorized Agent is never restarted, and the Veloop control app stays open.
 
 ## Uninstall behavior
 

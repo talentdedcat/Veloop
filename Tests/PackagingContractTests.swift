@@ -353,7 +353,7 @@ final class PackagingContractTests: XCTestCase {
         let model = try text("Sources/Core/Control/ControlViewModel.swift")
         let delegate = try text("Sources/App/AppDelegate.swift")
 
-        XCTAssertTrue(model.contains("permissionRefreshPending = true"))
+        XCTAssertTrue(model.contains("!permissions.canCycle"))
         XCTAssertTrue(model.contains("restartForPermissionRefresh()"))
         XCTAssertTrue(delegate.contains("await viewModel.applicationDidBecomeActive()"))
         XCTAssertFalse(delegate.contains("await viewModel.reload()"))

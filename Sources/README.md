@@ -16,7 +16,7 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 
 The Core module is shared by the shipped executables and the XCTest contracts. System API ownership stays in focused wrappers so capture, retention, presentation, and control logic remain independently testable.
 
-The same `Veloop` executable runs in `--agent` mode, so `/Applications/Veloop.app` is the only permission-bearing application identity. The control app performs one bounded state request before recovery on ordinary activation. Returning from a permission-button trip to System Settings force-restarts only the Agent once before querying, because macOS activates a newly added Input Monitoring grant for a new process. A changed ad-hoc executable hash triggers targeted stale-permission cleanup before the new Agent starts.
+The same `Veloop` executable runs in `--agent` mode, so `/Applications/Veloop.app` is the only permission-bearing application identity. The control app performs one bounded state request before recovery on every activation. When that state is missing either permission, it force-restarts only the Agent once and reads the replacement process state, because macOS activates a newly added Input Monitoring grant for a new process. Fully authorized activations never restart the Agent. A changed ad-hoc executable hash triggers targeted stale-permission cleanup before the new Agent starts.
 
 ## Runtime flow
 
