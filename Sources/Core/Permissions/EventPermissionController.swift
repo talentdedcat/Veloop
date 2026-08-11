@@ -1,11 +1,6 @@
 import ApplicationServices
 import Foundation
 
-public enum EventPermissionGroup: String, Codable, Equatable, Sendable {
-    case inputMonitoring
-    case accessibility
-}
-
 public struct EventPermissionStatus: Codable, Equatable, Sendable {
     public let listenEvents: Bool
     public let postEvents: Bool
@@ -21,14 +16,6 @@ public struct EventPermissionStatus: Codable, Equatable, Sendable {
         listenEvents && postEvents && accessibility
     }
 
-    public func isAllowed(for group: EventPermissionGroup) -> Bool {
-        switch group {
-        case .inputMonitoring:
-            listenEvents
-        case .accessibility:
-            postEvents && accessibility
-        }
-    }
 }
 
 final class EventPermissionController {
@@ -52,11 +39,5 @@ final class EventPermissionController {
             postEvents: preflightPostEventAccess(),
             accessibility: preflightAccessibility()
         )
-    }
-
-    @discardableResult
-    func request(_ group: EventPermissionGroup) -> EventPermissionStatus {
-        _ = group
-        return status()
     }
 }

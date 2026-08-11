@@ -2,7 +2,7 @@ import AppKit
 import VeloopCore
 
 final class ControlWindowController: NSWindowController {
-    static let contentSize = NSSize(width: 680, height: 502)
+    static let contentSize = NSSize(width: 680, height: 460)
 
     private let localization: LocalizationController
 

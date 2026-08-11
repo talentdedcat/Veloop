@@ -2,39 +2,19 @@ import XCTest
 @testable import VeloopCore
 
 final class EventPermissionControllerTests: XCTestCase {
-    func testPermissionGroupHasStableCodableRawValues() throws {
-        let encoder = JSONEncoder()
-        let decoder = JSONDecoder()
-
-        XCTAssertEqual(EventPermissionGroup.inputMonitoring.rawValue, "inputMonitoring")
-        XCTAssertEqual(EventPermissionGroup.accessibility.rawValue, "accessibility")
-        XCTAssertEqual(
-            try decoder.decode(EventPermissionGroup.self, from: encoder.encode(EventPermissionGroup.inputMonitoring)),
-            .inputMonitoring
-        )
-    }
-
-    func testStatusAllowanceMatchesEachPermissionGroup() {
-        XCTAssertTrue(
-            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: false)
-                .isAllowed(for: .inputMonitoring)
-        )
-        XCTAssertFalse(
-            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true)
-                .isAllowed(for: .inputMonitoring)
-        )
-        XCTAssertTrue(
-            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true)
-                .isAllowed(for: .accessibility)
-        )
-        XCTAssertFalse(
-            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: true)
-                .isAllowed(for: .accessibility)
-        )
-        XCTAssertFalse(
-            EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: false)
-                .isAllowed(for: .accessibility)
-        )
+    func testCanCycleRequiresEveryRuntimeCapability() {
+        XCTAssertTrue(EventPermissionStatus(
+            listenEvents: true,
+            postEvents: true,
+            accessibility: true
+        ).canCycle)
+        for status in [
+            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true),
+            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: true),
+            EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: false),
+        ] {
+            XCTAssertFalse(status.canCycle)
+        }
     }
 
     func testStatusReadsEveryPreflightOnEveryCall() {
@@ -56,25 +36,6 @@ final class EventPermissionControllerTests: XCTestCase {
         XCTAssertEqual(spy.listenPreflightCount, 2)
         XCTAssertEqual(spy.postPreflightCount, 2)
         XCTAssertEqual(spy.accessibilityPreflightCount, 2)
-    }
-
-    func testCompatibilityRequestOnlyReturnsFreshPreflightStatus() {
-        let spy = PermissionSpy(listenEvents: false, postEvents: false, accessibility: false)
-        let controller = spy.makeController()
-
-        spy.listenEvents = true
-        spy.postEvents = true
-        spy.accessibility = true
-
-        let status = controller.request(.accessibility)
-
-        XCTAssertEqual(
-            status,
-            EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: true)
-        )
-        XCTAssertEqual(spy.listenPreflightCount, 1)
-        XCTAssertEqual(spy.postPreflightCount, 1)
-        XCTAssertEqual(spy.accessibilityPreflightCount, 1)
     }
 }
 

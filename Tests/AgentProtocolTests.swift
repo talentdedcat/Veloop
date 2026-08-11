@@ -4,6 +4,20 @@ import XCTest
 @testable import VeloopCore
 
 final class AgentProtocolTests: XCTestCase {
+    func testObsoletePermissionRequestIPCIsRemoved() throws {
+        let combinedSource = try [
+            "Sources/Core/Permissions/EventPermissionController.swift",
+            "Sources/Core/Control/ControlState.swift",
+            "Sources/Core/Control/ControlViewModel.swift",
+            "Sources/Core/Control/AgentControlClient.swift",
+            "Sources/Core/Agent/VeloopAgentRuntime.swift",
+        ].map(source).joined(separator: "\n")
+
+        for obsolete in ["EventPermissionGroup", "requestPermissions", "request-permissions"] {
+            XCTAssertFalse(combinedSource.contains(obsolete), obsolete)
+        }
+    }
+
     func testRequestAndResponseRoundTrip() throws {
         let request = AgentRequest(command: "config-set", arguments: ["maximumHistoryCount", "200"])
         let response = AgentResponse.success("ok")
@@ -76,54 +90,6 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(started), 1)
     }
 
-    func testControlClientRequestsExactlyTheSpecifiedPermissionGroupAndDecodesStatus() throws {
-        let expected = EventPermissionStatus(
-            listenEvents: false,
-            postEvents: true,
-            accessibility: true
-        )
-        let requester = RecordingRequester(response: .success(try encodedJSON(expected)))
-        let client = AgentControlClient(requester: requester)
-
-        let status = try client.requestPermissions(.accessibility)
-
-        XCTAssertEqual(status, expected)
-        XCTAssertEqual(
-            requester.requests,
-            [AgentRequest(command: "request-permissions", arguments: ["accessibility"])]
-        )
-    }
-
-    func testRuntimePermissionRequestRequiresExactlyOneKnownGroupAndSynchronizesReturnedStatus() throws {
-        let runtime = try source("Sources/Core/Agent/VeloopAgentRuntime.swift")
-        let requestStart = try XCTUnwrap(runtime.range(of: "private func requestPermissionStatus"))
-        let requestEnd = try XCTUnwrap(runtime.range(
-            of: "\n    private func encodedResponse",
-            range: requestStart.lowerBound..<runtime.endIndex
-        ))
-        let request = runtime[requestStart.lowerBound..<requestEnd.lowerBound]
-
-        XCTAssertTrue(runtime.contains("requestPermissionStatus(arguments: request.arguments)"))
-        XCTAssertTrue(request.contains("arguments.count == 1"))
-        XCTAssertTrue(request.contains("EventPermissionGroup(rawValue: arguments[0])"))
-        XCTAssertTrue(request.contains("return .failure(\"invalid permission group\")"))
-        XCTAssertTrue(request.contains("permissions.request(group)"))
-        XCTAssertTrue(request.contains("synchronizeInputSubsystem(listenEvents: status.listenEvents)"))
-        XCTAssertTrue(request.contains("return encodedResponse(status)"))
-
-        let permissionController = try source(
-            "Sources/Core/Permissions/EventPermissionController.swift"
-        )
-        for forbidden in [
-            "CGRequestListenEventAccess",
-            "CGRequestPostEventAccess",
-            "AXIsProcessTrustedWithOptions",
-            "kAXTrustedCheckOptionPrompt",
-        ] {
-            XCTAssertFalse(permissionController.contains(forbidden))
-        }
-    }
-
     func testControlStateSynchronizesInputFromTheSamePermissionSnapshot() throws {
         let runtime = try source("Sources/Core/Agent/VeloopAgentRuntime.swift")
         let start = try XCTUnwrap(runtime.range(of: "private func controlState()"))
@@ -146,10 +112,10 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertFalse(exists("Sources/Core/Agent/AgentProcessRestarter.swift"))
     }
 
-    func testPermissionControllerHasNoParameterlessRequestShim() throws {
+    func testPermissionControllerHasNoRequestAPI() throws {
         let controller = try source("Sources/Core/Permissions/EventPermissionController.swift")
 
-        XCTAssertFalse(controller.contains("func request() -> EventPermissionStatus"))
+        XCTAssertFalse(controller.contains("func request"))
     }
 
     private func temporaryDirectory() throws -> URL {
@@ -157,10 +123,6 @@ final class AgentProtocolTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         return root
-    }
-
-    private func encodedJSON<T: Encodable>(_ value: T) throws -> String {
-        String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
     }
 
     private var repositoryRoot: URL {
@@ -173,28 +135,5 @@ final class AgentProtocolTests: XCTestCase {
 
     private func source(_ relativePath: String) throws -> String {
         try String(contentsOf: repositoryRoot.appendingPathComponent(relativePath), encoding: .utf8)
-    }
-}
-
-private final class RecordingRequester: AgentRequesting, @unchecked Sendable {
-    private let lock = NSLock()
-    private var requestStorage: [AgentRequest] = []
-    private let response: AgentResponse
-
-    var requests: [AgentRequest] {
-        lock.lock()
-        defer { lock.unlock() }
-        return requestStorage
-    }
-
-    init(response: AgentResponse) {
-        self.response = response
-    }
-
-    func send(_ request: AgentRequest) throws -> AgentResponse {
-        lock.lock()
-        requestStorage.append(request)
-        lock.unlock()
-        return response
     }
 }

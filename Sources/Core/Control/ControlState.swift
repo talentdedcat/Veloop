@@ -45,7 +45,6 @@ public protocol AgentControlling: AnyObject, Sendable {
     func state() throws -> ControlState
     func update(_ update: ControlUpdate) throws -> ControlState
     func clearHistory() throws
-    func requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus
 }
 
 public protocol AgentLifecycleControlling: AnyObject, Sendable {

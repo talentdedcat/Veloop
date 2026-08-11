@@ -15,7 +15,6 @@
 "storage.diskLimit" = "存储空间上限";
 "unit.items" = "项";
 "permissions.title" = "权限";
-"permissions.inputMonitoring" = "输入监控";
 "permissions.accessibility" = "辅助功能";
 "permissions.allowed" = "已允许";
 "permissions.missing" = "需要授权";
@@ -35,7 +34,6 @@
 "error.agentUnavailable" = "Veloop 没有响应，请关闭并重新打开后重试。";
 "error.updateFailed" = "无法保存此设置。";
 "error.clearFailed" = "无法清除剪贴板历史。";
-"error.permissionRequestFailed" = "无法刷新权限状态。";
 "error.registrationFailed" = "无法更改登录项设置。";
 "error.invalidLimit" = "每个上限都必须输入正整数。";
 "setup.error.title" = "Veloop 无法完成设置";

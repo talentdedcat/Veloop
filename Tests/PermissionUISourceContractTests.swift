@@ -18,17 +18,23 @@ final class PermissionUISourceContractTests: XCTestCase {
         }
     }
 
-    func testPermissionRowsRenderGroupedFourStateModelWithoutNilToFalseFallback() throws {
+    func testSingleAccessibilityRowRendersCombinedFourStateModel() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
         let render = try functionBody(named: "render", in: controller)
         let permissionRenderer = try functionBody(named: "renderPermission", in: controller)
 
         XCTAssertTrue(render.contains(
-            "model.permissionSyncState.displayState(for: .inputMonitoring)"
+            "model.permissionSyncState.displayState"
         ))
-        XCTAssertTrue(render.contains(
-            "model.permissionSyncState.displayState(for: .accessibility)"
-        ))
+        XCTAssertFalse(render.contains("displayState(for:"))
+        for obsolete in [
+            "inputStatusImage",
+            "inputStatusLabel",
+            "inputSettingsButton",
+            "inputPermissionLabel",
+        ] {
+            XCTAssertFalse(controller.contains(obsolete), obsolete)
+        }
         XCTAssertNil(render.range(
             of: #"state\?\.permissions\.[^\n]+\?\? false"#,
             options: .regularExpression
@@ -56,33 +62,27 @@ final class PermissionUISourceContractTests: XCTestCase {
         XCTAssertTrue(missing.contains("systemOrange"))
     }
 
-    func testPermissionButtonsRemainAvailableOutsideLoadingState() throws {
+    func testAccessibilityButtonRemainsAvailableOutsideLoadingState() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
         let render = try functionBody(named: "render", in: controller)
 
         XCTAssertTrue(render.contains(
-            "inputSettingsButton.isEnabled = !model.isLoading"
-        ))
-        XCTAssertTrue(render.contains(
             "accessibilitySettingsButton.isEnabled = !model.isLoading"
         ))
+        XCTAssertFalse(controller.contains("inputSettingsButton"))
     }
 
-    func testSettingsActionsOnlyNavigateWithoutRequestingPermissions() throws {
+    func testOnlyAccessibilitySettingsActionRemains() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
-        let inputAction = try functionBody(named: "openInputSettings", in: controller)
         let accessibilityAction = try functionBody(named: "openAccessibilitySettings", in: controller)
         let helper = try functionBody(named: "openSystemSettings", in: controller)
 
-        XCTAssertTrue(inputAction.contains(
-            "openSystemSettings(\"Privacy_ListenEvent\")"
-        ))
         XCTAssertTrue(accessibilityAction.contains(
             "openSystemSettings(\"Privacy_Accessibility\")"
         ))
         XCTAssertTrue(helper.contains("NSWorkspace.shared.open(url)"))
-        XCTAssertFalse(controller.contains("model.requestPermissions("))
-        XCTAssertFalse(try functionBody(named: "render", in: controller).contains("requestPermissions"))
+        XCTAssertFalse(controller.contains("openInputSettings"))
+        XCTAssertFalse(controller.contains("Privacy_ListenEvent"))
     }
 
     func testSubmittedLimitTextSynchronizesItsStepperImmediately() throws {
@@ -115,6 +115,16 @@ final class PermissionUISourceContractTests: XCTestCase {
             XCTAssertTrue(english.contains("\"\(key)\" = "), "English is missing \(key)")
             XCTAssertTrue(chinese.contains("\"\(key)\" = "), "Chinese is missing \(key)")
         }
+        XCTAssertFalse(english.contains("permissions.inputMonitoring"))
+        XCTAssertFalse(chinese.contains("permissions.inputMonitoring"))
+    }
+
+    func testSinglePermissionRowUsesTighterFixedWindow() throws {
+        let controller = try text("Sources/App/ControlViewController.swift")
+        let window = try text("Sources/App/ControlWindowController.swift")
+
+        XCTAssertTrue(controller.contains("outer.heightAnchor.constraint(equalToConstant: 408)"))
+        XCTAssertTrue(window.contains("NSSize(width: 680, height: 460)"))
     }
 
     private var repositoryRoot: URL {

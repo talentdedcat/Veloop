@@ -250,8 +250,6 @@ public final class VeloopAgentRuntime {
             return encodedResponse(controlState())
         case "control-update":
             return applyControlUpdate(arguments: request.arguments)
-        case "request-permissions":
-            return requestPermissionStatus(arguments: request.arguments)
         default:
             return .failure("unknown command")
         }
@@ -364,26 +362,6 @@ public final class VeloopAgentRuntime {
         } catch {
             return .failure("control update failed")
         }
-    }
-
-    private func requestPermissionStatus(arguments: [String]) -> AgentResponse {
-        guard arguments.count == 1,
-              let group = EventPermissionGroup(rawValue: arguments[0]) else {
-            return .failure("invalid permission group")
-        }
-
-        let status: EventPermissionStatus
-        if Thread.isMainThread {
-            status = permissions.request(group)
-            synchronizeInputSubsystem(listenEvents: status.listenEvents)
-        } else {
-            status = DispatchQueue.main.sync { [self] in
-                let status = permissions.request(group)
-                synchronizeInputSubsystem(listenEvents: status.listenEvents)
-                return status
-            }
-        }
-        return encodedResponse(status)
     }
 
     private func encodedResponse<T: Encodable>(_ value: T) -> AgentResponse {

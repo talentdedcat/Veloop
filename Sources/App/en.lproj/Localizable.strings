@@ -15,7 +15,6 @@
 "storage.diskLimit" = "Storage limit";
 "unit.items" = "items";
 "permissions.title" = "Permissions";
-"permissions.inputMonitoring" = "Input Monitoring";
 "permissions.accessibility" = "Accessibility";
 "permissions.allowed" = "Allowed";
 "permissions.missing" = "Required";
@@ -35,7 +34,6 @@
 "error.agentUnavailable" = "Veloop is not responding. Close and reopen it to try again.";
 "error.updateFailed" = "The setting could not be saved.";
 "error.clearFailed" = "Clipboard history could not be cleared.";
-"error.permissionRequestFailed" = "Permission status could not be refreshed.";
 "error.registrationFailed" = "The login item setting could not be changed.";
 "error.invalidLimit" = "Enter a positive whole number for each limit.";
 "setup.error.title" = "Veloop could not finish setup";

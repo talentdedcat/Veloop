@@ -2,37 +2,27 @@ import XCTest
 @testable import VeloopCore
 
 final class PermissionPresentationTests: XCTestCase {
-    func testFullyGrantedAgentResponseDisplaysBothRowsAsAllowed() {
+    func testFullyGrantedAgentResponseDisplaysAllowed() {
         let state = PermissionSyncState.available(
             EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: true)
         )
 
-        XCTAssertEqual(state.displayState(for: .inputMonitoring), .allowed)
-        XCTAssertEqual(state.displayState(for: .accessibility), .allowed)
+        XCTAssertEqual(state.displayState, .allowed)
     }
 
-    func testAccessibilityRequiresPostingAndAXPermission() {
-        let state = PermissionSyncState.available(
-            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: true)
-        )
-
-        XCTAssertEqual(state.displayState(for: .inputMonitoring), .allowed)
-        XCTAssertEqual(state.displayState(for: .accessibility), .missing)
-    }
-
-    func testAvailableDeniedPermissionDisplaysAsMissing() {
-        let state = PermissionSyncState.available(
-            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true)
-        )
-
-        XCTAssertEqual(state.displayState(for: .inputMonitoring), .missing)
+    func testAccessibilityDisplayRequiresEveryRuntimeCapability() {
+        for status in [
+            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true),
+            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: true),
+            EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: false),
+        ] {
+            XCTAssertEqual(PermissionSyncState.available(status).displayState, .missing)
+        }
     }
 
     func testCheckingAndUnavailableNeverDisplayAsMissing() {
-        for group in [EventPermissionGroup.inputMonitoring, .accessibility] {
-            XCTAssertEqual(PermissionSyncState.checking.displayState(for: group), .checking)
-            XCTAssertEqual(PermissionSyncState.unavailable.displayState(for: group), .unavailable)
-        }
+        XCTAssertEqual(PermissionSyncState.checking.displayState, .checking)
+        XCTAssertEqual(PermissionSyncState.unavailable.displayState, .unavailable)
     }
 
     func testPermissionDisplayStateIsEquatableAndSendable() {

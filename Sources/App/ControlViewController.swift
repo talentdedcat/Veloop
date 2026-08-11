@@ -23,11 +23,8 @@ final class ControlViewController: NSViewController {
     private let storageField = NSTextField()
     private let storageStepper = NSStepper()
     private let storageUnitLabel = NSTextField(labelWithString: "MB")
-    private let inputStatusImage = NSImageView()
-    private let inputStatusLabel = NSTextField(labelWithString: "")
     private let accessibilityStatusImage = NSImageView()
     private let accessibilityStatusLabel = NSTextField(labelWithString: "")
-    private let inputSettingsButton = NSButton()
     private let accessibilitySettingsButton = NSButton()
     private let languagePopup = NSPopUpButton()
     private let openDataButton = NSButton()
@@ -41,7 +38,6 @@ final class ControlViewController: NSViewController {
     private let historyLimitLabel = NSTextField(labelWithString: "")
     private let storageLimitLabel = NSTextField(labelWithString: "")
     private let permissionsTitle = NSTextField(labelWithString: "")
-    private let inputPermissionLabel = NSTextField(labelWithString: "")
     private let accessibilityPermissionLabel = NSTextField(labelWithString: "")
     private let languageLabel = NSTextField(labelWithString: "")
     private var localErrorKey: String?
@@ -163,21 +159,13 @@ final class ControlViewController: NSViewController {
         configureSectionTitle(permissionsTitle)
         constrainHeight(permissionsTitle, 20)
         append(permissionsTitle)
-        let inputRow = permissionRow(
-            title: inputPermissionLabel,
-            image: inputStatusImage,
-            status: inputStatusLabel,
-            button: inputSettingsButton
-        )
         let accessibilityRow = permissionRow(
             title: accessibilityPermissionLabel,
             image: accessibilityStatusImage,
             status: accessibilityStatusLabel,
             button: accessibilitySettingsButton
         )
-        constrainHeight(inputRow, 42)
         constrainHeight(accessibilityRow, 42)
-        append(inputRow)
         append(accessibilityRow)
         append(separator())
 
@@ -211,8 +199,6 @@ final class ControlViewController: NSViewController {
         storageStepper.action = #selector(storageStepperChanged)
         languagePopup.target = self
         languagePopup.action = #selector(languageChanged)
-        inputSettingsButton.target = self
-        inputSettingsButton.action = #selector(openInputSettings)
         accessibilitySettingsButton.target = self
         accessibilitySettingsButton.action = #selector(openAccessibilitySettings)
         openDataButton.target = self
@@ -224,7 +210,7 @@ final class ControlViewController: NSViewController {
             outer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             outer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             outer.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            outer.heightAnchor.constraint(equalToConstant: 450),
+            outer.heightAnchor.constraint(equalToConstant: 408),
         ])
     }
 
@@ -244,10 +230,8 @@ final class ControlViewController: NSViewController {
         storageField.setAccessibilityLabel(storageLimitLabel.stringValue)
         storageStepper.setAccessibilityLabel(storageLimitLabel.stringValue)
         permissionsTitle.stringValue = localization.string("permissions.title")
-        inputPermissionLabel.stringValue = localization.string("permissions.inputMonitoring")
         accessibilityPermissionLabel.stringValue = localization.string("permissions.accessibility")
         languageLabel.stringValue = localization.string("language.label")
-        configureButton(inputSettingsButton, titleKey: "action.openSettings", symbol: "gearshape")
         configureButton(accessibilitySettingsButton, titleKey: "action.openSettings", symbol: "gearshape")
         configureButton(openDataButton, titleKey: "action.openData", symbol: "folder")
         configureButton(clearButton, titleKey: "action.clearHistory", symbol: "trash")
@@ -293,11 +277,8 @@ final class ControlViewController: NSViewController {
                 storageStepper.doubleValue = megabytes
             }
         }
-        let inputPermissionState = model.permissionSyncState.displayState(for: .inputMonitoring)
-        let accessibilityPermissionState = model.permissionSyncState.displayState(for: .accessibility)
-        renderPermission(inputPermissionState, image: inputStatusImage, label: inputStatusLabel)
         renderPermission(
-            accessibilityPermissionState,
+            model.permissionSyncState.displayState,
             image: accessibilityStatusImage,
             label: accessibilityStatusLabel
         )
@@ -310,7 +291,6 @@ final class ControlViewController: NSViewController {
         storageField.isEnabled = controlsEnabled
         storageStepper.isEnabled = controlsEnabled
         clearButton.isEnabled = controlsEnabled && (state?.historyCount ?? 0) > 0
-        inputSettingsButton.isEnabled = !model.isLoading
         accessibilitySettingsButton.isEnabled = !model.isLoading
 
         let errorKey = localErrorKey ?? model.inlineError.map(errorKey(for:))
@@ -432,10 +412,6 @@ final class ControlViewController: NSViewController {
         localization.language = language
     }
 
-    @objc private func openInputSettings() {
-        openSystemSettings("Privacy_ListenEvent")
-    }
-
     @objc private func openAccessibilitySettings() {
         openSystemSettings("Privacy_Accessibility")
     }
@@ -472,7 +448,6 @@ final class ControlViewController: NSViewController {
         case .agentUnavailable: return "error.agentUnavailable"
         case .updateFailed: return "error.updateFailed"
         case .clearFailed: return "error.clearFailed"
-        case .permissionRequestFailed: return "error.permissionRequestFailed"
         }
     }
 

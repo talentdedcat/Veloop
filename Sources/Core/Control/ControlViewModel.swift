@@ -4,7 +4,6 @@ public enum ControlViewModelError: Equatable, Sendable {
     case agentUnavailable
     case updateFailed
     case clearFailed
-    case permissionRequestFailed
 }
 
 public enum PermissionSyncState: Equatable, Sendable {
@@ -12,12 +11,12 @@ public enum PermissionSyncState: Equatable, Sendable {
     case available(EventPermissionStatus)
     case unavailable
 
-    public func displayState(for group: EventPermissionGroup) -> PermissionDisplayState {
+    public var displayState: PermissionDisplayState {
         switch self {
         case .checking:
             return .checking
         case let .available(status):
-            return status.isAllowed(for: group) ? .allowed : .missing
+            return status.canCycle ? .allowed : .missing
         case .unavailable:
             return .unavailable
         }
@@ -42,7 +41,9 @@ public final class ControlViewModel {
     private let agent: AgentControlling
     private let lifecycle: AgentLifecycleControlling
     private let queue = DispatchQueue(label: "com.veloop.control", qos: .utility)
+    private var launchSynchronizationPrepared = false
     private var launchSynchronizationInProgress = false
+    private var suppressNextActivation = false
     private var synchronizationRevision: UInt64 = 0
 
     public init(
@@ -55,6 +56,11 @@ public final class ControlViewModel {
 
     public func applicationDidBecomeActive() async {
         guard !Task.isCancelled else { return }
+        if suppressNextActivation {
+            suppressNextActivation = false
+            return
+        }
+        guard !launchSynchronizationPrepared else { return }
         guard !launchSynchronizationInProgress else { return }
         await synchronizeAllowingRecovery()
         guard case let .available(permissions) = permissionSyncState,
@@ -65,10 +71,16 @@ public final class ControlViewModel {
     public func synchronizeOnLaunch() async {
         guard !Task.isCancelled else { return }
         guard !launchSynchronizationInProgress else { return }
+        launchSynchronizationPrepared = false
         launchSynchronizationInProgress = true
         defer { launchSynchronizationInProgress = false }
 
         await synchronizeAllowingRecovery()
+    }
+
+    public func prepareForLaunchSynchronization() {
+        launchSynchronizationPrepared = true
+        suppressNextActivation = true
     }
 
     public func reload() async {
@@ -138,33 +150,6 @@ public final class ControlViewModel {
         }
     }
 
-    public func requestPermissions(_ group: EventPermissionGroup) async {
-        guard !Task.isCancelled else { return }
-        guard case let .available(permissions) = permissionSyncState,
-              !permissions.isAllowed(for: group) else {
-            return
-        }
-        let revision = beginSynchronization()
-        guard !shouldStop(revision: revision) else { return }
-        let requestResult = await offMain { [agent] in
-            try agent.requestPermissions(group)
-        }
-        guard !shouldStop(revision: revision) else { return }
-        guard case .success = requestResult else {
-            publishFailure(.permissionRequestFailed, revision: revision)
-            return
-        }
-        guard !shouldStop(revision: revision) else { return }
-        let stateResult = await offMain { [agent] in try agent.state() }
-        guard !shouldStop(revision: revision) else { return }
-        switch stateResult {
-        case let .success(state):
-            publishFresh(state, revision: revision)
-        case .failure:
-            publishFailure(.permissionRequestFailed, revision: revision)
-        }
-    }
-
     private func synchronizeAllowingRecovery() async {
         let revision = beginSynchronization()
         guard !shouldStop(revision: revision) else { return }
@@ -184,7 +169,11 @@ public final class ControlViewModel {
             return
         }
 
-        let recoveredState = await offMain { [agent] in try agent.state() }
+        var recoveredState = await offMain { [agent] in try agent.state() }
+        if case .failure = recoveredState {
+            await waitForAgentToSettle()
+            recoveredState = await offMain { [agent] in try agent.state() }
+        }
         guard !shouldStop(revision: revision) else { return }
         switch recoveredState {
         case let .success(state):
@@ -313,6 +302,14 @@ public final class ControlViewModel {
             }
         } onCancel: {
             cancellation.cancel()
+        }
+    }
+
+    private func waitForAgentToSettle() async {
+        await withCheckedContinuation { continuation in
+            queue.asyncAfter(deadline: .now() + .milliseconds(50)) {
+                continuation.resume()
+            }
         }
     }
 

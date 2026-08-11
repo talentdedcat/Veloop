@@ -4,6 +4,46 @@ import XCTest
 
 final class ControlViewModelTests: XCTestCase {
     @MainActor
+    func testPreparedLaunchBlocksEarlyActivationUntilLaunchSynchronizationRuns() async {
+        let expected = controlState(enabled: true)
+        let agent = ScriptedAgent(states: [.success(expected)])
+        let model = makeModel(agent: agent)
+
+        model.prepareForLaunchSynchronization()
+        await model.applicationDidBecomeActive()
+        XCTAssertEqual(agent.stateCallCount, 0)
+
+        await model.synchronizeOnLaunch()
+
+        XCTAssertEqual(agent.stateCallCount, 1)
+        XCTAssertEqual(model.state, expected)
+    }
+
+    @MainActor
+    func testPreparedLaunchSuppressesOnlyTheInitialActivationAfterSynchronization() async {
+        let permissions = permissionStatus(listen: false, post: false, accessibility: false)
+        let expected = controlState(enabled: true, permissions: permissions)
+        let agent = ScriptedAgent(states: [
+            .success(expected),
+            .success(expected),
+            .success(expected),
+        ])
+        let lifecycle = ScriptedLifecycle()
+        let model = makeModel(agent: agent, lifecycle: lifecycle)
+
+        model.prepareForLaunchSynchronization()
+        await model.synchronizeOnLaunch()
+        await model.applicationDidBecomeActive()
+
+        XCTAssertEqual(agent.stateCallCount, 1)
+        XCTAssertEqual(lifecycle.restartCallCount, 0)
+
+        await model.applicationDidBecomeActive()
+        XCTAssertEqual(agent.stateCallCount, 3)
+        XCTAssertEqual(lifecycle.restartCallCount, 1)
+    }
+
+    @MainActor
     func testLaunchQueriesStateBeforeAnyRecoveryAndPublishesExactPermissions() async {
         let calls = LockedCalls()
         let permissions = permissionStatus(listen: false, post: true, accessibility: true)
@@ -39,7 +79,7 @@ final class ControlViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testGrantedStateMapsBothPermissionGroupsAllowed() async {
+    func testGrantedStateMapsCombinedPermissionAllowed() async {
         let granted = permissionStatus(listen: true, post: true, accessibility: true)
         let agent = ScriptedAgent(states: [.success(controlState(permissions: granted))])
         let model = makeModel(agent: agent)
@@ -49,8 +89,8 @@ final class ControlViewModelTests: XCTestCase {
         guard case let .available(status) = model.permissionSyncState else {
             return XCTFail("Expected available permissions")
         }
-        XCTAssertTrue(status.isAllowed(for: .inputMonitoring))
-        XCTAssertTrue(status.isAllowed(for: .accessibility))
+        XCTAssertTrue(status.canCycle)
+        XCTAssertEqual(model.permissionSyncState.displayState, .allowed)
     }
 
     @MainActor
@@ -66,7 +106,6 @@ final class ControlViewModelTests: XCTestCase {
         await model.synchronizeOnLaunch()
         await model.applicationDidBecomeActive()
 
-        XCTAssertEqual(agent.requestedGroups, [])
         XCTAssertEqual(lifecycle.ensureCallCount, 0)
         XCTAssertEqual(agent.stateCallCount, 2)
     }
@@ -117,6 +156,24 @@ final class ControlViewModelTests: XCTestCase {
         XCTAssertEqual(lifecycle.ensureCallCount, 1)
         XCTAssertEqual(model.state, expected)
         XCTAssertEqual(model.permissionSyncState, .available(expected.permissions))
+    }
+
+    @MainActor
+    func testRecoveryToleratesOneImmediatePostReadinessSocketRace() async {
+        let expected = controlState(enabled: true)
+        let agent = ScriptedAgent(states: [
+            .failure(TestError.unavailable),
+            .failure(TestError.unavailable),
+            .success(expected),
+        ])
+        let lifecycle = ScriptedLifecycle()
+        let model = makeModel(agent: agent, lifecycle: lifecycle)
+
+        await model.synchronizeOnLaunch()
+
+        XCTAssertEqual(agent.stateCallCount, 3)
+        XCTAssertEqual(lifecycle.ensureCallCount, 1)
+        XCTAssertEqual(model.state, expected)
     }
 
     @MainActor
@@ -183,7 +240,7 @@ final class ControlViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testFailedRecoveryUsesOneRetryAndClearsStalePermissionState() async {
+    func testFailedRecoveryUsesBoundedRetriesAndClearsStalePermissionState() async {
         let stale = controlState(permissions: permissionStatus(listen: true, post: true, accessibility: true))
         let agent = ScriptedAgent(states: [.success(stale)])
         let model = makeModel(agent: agent)
@@ -195,7 +252,7 @@ final class ControlViewModelTests: XCTestCase {
 
         await model.synchronizeOnLaunch()
 
-        XCTAssertEqual(agent.stateCallCount, 3)
+        XCTAssertEqual(agent.stateCallCount, 4)
         XCTAssertNil(model.state)
         XCTAssertEqual(model.permissionSyncState, .unavailable)
         XCTAssertEqual(model.inlineError, .agentUnavailable)
@@ -215,51 +272,6 @@ final class ControlViewModelTests: XCTestCase {
         XCTAssertNil(model.state)
         XCTAssertEqual(model.permissionSyncState, .unavailable)
         XCTAssertEqual(model.inlineError, .agentUnavailable)
-    }
-
-    @MainActor
-    func testAlreadyGrantedPermissionClickDoesNotRequestOrQueryAgain() async {
-        let granted = permissionStatus(listen: true, post: true, accessibility: true)
-        let agent = ScriptedAgent(states: [.success(controlState(permissions: granted))])
-        let model = makeModel(agent: agent)
-        await model.reload()
-
-        await model.requestPermissions(.accessibility)
-
-        XCTAssertEqual(agent.requestedGroups, [])
-        XCTAssertEqual(agent.stateCallCount, 1)
-    }
-
-    @MainActor
-    func testUnknownPermissionClickDoesNotRequest() async {
-        let agent = ScriptedAgent(states: [.success(controlState())])
-        let model = makeModel(agent: agent)
-
-        await model.requestPermissions(.inputMonitoring)
-
-        XCTAssertEqual(agent.requestedGroups, [])
-        XCTAssertEqual(agent.stateCallCount, 0)
-    }
-
-    @MainActor
-    func testMissingPermissionClickRequestsOnlyGroupThenPublishesFreshState() async {
-        let missing = permissionStatus(listen: true, post: false, accessibility: false)
-        let granted = permissionStatus(listen: true, post: true, accessibility: true)
-        let calls = LockedCalls()
-        let agent = ScriptedAgent(calls: calls, states: [
-            .success(controlState(permissions: missing)),
-            .success(controlState(permissions: granted)),
-        ])
-        let model = makeModel(agent: agent)
-        await model.reload()
-        calls.removeAll()
-
-        await model.requestPermissions(.accessibility)
-
-        XCTAssertEqual(calls.values, ["request:accessibility", "state"])
-        XCTAssertEqual(agent.requestedGroups, [.accessibility])
-        XCTAssertEqual(model.state?.permissions, granted)
-        XCTAssertEqual(model.permissionSyncState, .available(granted))
     }
 
     @MainActor
@@ -480,7 +492,6 @@ private final class ScriptedAgent: AgentControlling, @unchecked Sendable {
     private var stateHandlers: [() throws -> ControlState]
     private var updateHandlers: [(ControlUpdate) throws -> ControlState]
     private var receivedUpdateStorage: [ControlUpdate] = []
-    private var requestedGroupStorage: [EventPermissionGroup] = []
     private var stateCalls = 0
     private var mainThreadStorage: [Bool] = []
 
@@ -502,10 +513,6 @@ private final class ScriptedAgent: AgentControlling, @unchecked Sendable {
         self.calls = calls
         self.stateHandlers = stateHandlers
         self.updateHandlers = updateHandlers
-    }
-
-    var requestedGroups: [EventPermissionGroup] {
-        lock.withLock { requestedGroupStorage }
     }
 
     var stateCallCount: Int {
@@ -552,14 +559,6 @@ private final class ScriptedAgent: AgentControlling, @unchecked Sendable {
         calls.append("clear")
     }
 
-    func requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus {
-        calls.append("request:\(group.rawValue)")
-        lock.withLock {
-            mainThreadStorage.append(Thread.isMainThread)
-            requestedGroupStorage.append(group)
-        }
-        return permissionStatus()
-    }
 }
 
 private final class ScriptedLifecycle: AgentLifecycleControlling, @unchecked Sendable {
@@ -567,6 +566,7 @@ private final class ScriptedLifecycle: AgentLifecycleControlling, @unchecked Sen
     private let calls: LockedCalls
     private var ensureResults: [Result<Void, Error>]
     private var ensureCalls = 0
+    private var restartCalls = 0
     private var mainThreadStorage: [Bool] = []
     private let ensureHandler: (() throws -> Void)?
 
@@ -582,6 +582,10 @@ private final class ScriptedLifecycle: AgentLifecycleControlling, @unchecked Sen
 
     var ensureCallCount: Int {
         lock.withLock { ensureCalls }
+    }
+
+    var restartCallCount: Int {
+        lock.withLock { restartCalls }
     }
 
     var mainThreadObservations: [Bool] {
@@ -602,6 +606,7 @@ private final class ScriptedLifecycle: AgentLifecycleControlling, @unchecked Sen
     func restartForPermissionRefresh() throws {
         calls.append("restart")
         try lock.withLock {
+            restartCalls += 1
             mainThreadStorage.append(Thread.isMainThread)
             guard !ensureResults.isEmpty else { throw TestError.registration }
             try ensureResults.removeFirst().get()
