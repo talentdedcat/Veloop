@@ -396,6 +396,7 @@ final class ControlViewController: NSViewController {
             return
         }
         localErrorKey = nil
+        historyStepper.integerValue = count
         Task { await model.update(ControlUpdate(maximumHistoryCount: count)) }
     }
 
@@ -410,6 +411,7 @@ final class ControlViewController: NSViewController {
             return
         }
         localErrorKey = nil
+        storageStepper.integerValue = storageField.integerValue
         Task { await model.update(ControlUpdate(maximumDiskBytes: bytes)) }
     }
 

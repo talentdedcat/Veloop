@@ -98,6 +98,28 @@ final class PermissionUISourceContractTests: XCTestCase {
         XCTAssertFalse(try functionBody(named: "render", in: controller).contains("requestPermissions"))
     }
 
+    func testSubmittedLimitTextSynchronizesItsStepperImmediately() throws {
+        let controller = try text("Sources/App/ControlViewController.swift")
+        let history = try functionBody(named: "historyLimitSubmitted", in: controller)
+        let storage = try functionBody(named: "storageLimitSubmitted", in: controller)
+
+        let historySync = try XCTUnwrap(history.range(of:
+            "historyStepper.integerValue = count"
+        ))
+        let historyUpdate = try XCTUnwrap(history.range(of:
+            "model.update(ControlUpdate(maximumHistoryCount: count))"
+        ))
+        XCTAssertLessThan(historySync.lowerBound, historyUpdate.lowerBound)
+
+        let storageSync = try XCTUnwrap(storage.range(of:
+            "storageStepper.integerValue = storageField.integerValue"
+        ))
+        let storageUpdate = try XCTUnwrap(storage.range(of:
+            "model.update(ControlUpdate(maximumDiskBytes: bytes))"
+        ))
+        XCTAssertLessThan(storageSync.lowerBound, storageUpdate.lowerBound)
+    }
+
     func testPermissionPresentationKeysAreSynchronizedAcrossLocalizations() throws {
         let english = try text("Sources/App/en.lproj/Localizable.strings")
         let chinese = try text("Sources/App/zh-Hans.lproj/Localizable.strings")
