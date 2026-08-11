@@ -2,7 +2,7 @@
 
 cask "veloop" do
   version "0.2.0"
-  sha256 "d372266c8d03c808ae489d27db7b6d716a154b26573fb5c9c81982b546c14927"
+  sha256 "a35cdf2a895cf0334f371b13787a9573ebfe54daf6b166455dfae6dc5a3b73b8"
 
   url "https://github.com/talentdedcat/Veloop/releases/download/v#{version}/Veloop-#{version}-universal.dmg"
   name "Veloop"
