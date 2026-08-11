@@ -84,26 +84,28 @@ brew install --cask Veloop
     </tr>
     <tr>
       <td><strong>辅助功能</strong></td>
-      <td>选中历史记录后发送最终的模拟粘贴事件。</td>
+      <td>选中历史记录后发送最终的模拟粘贴事件，并在 Palette 无法提供坐标时定位当前聚焦光标。</td>
     </tr>
   </tbody>
 </table>
 
-文本光标定位不使用辅助功能权限。缺少这两项权限时，剪贴板捕获仍会继续。当 Veloop 关闭或输入监控不可用时，全局 Event Tap 停止，隐藏 Palette 取消选中，系统标准粘贴行为保持不变。
+文本光标定位首先查询 Palette。只有 Palette 结果不可用或无效时，Veloop 才会读取当前聚焦的 Accessibility 元素中折叠选区的矩形，并且只会在辅助功能已经获得授权时读取。缺少这两项权限时，剪贴板捕获仍会继续。当 Veloop 关闭或输入监控不可用时，全局 Event Tap 停止，隐藏 Palette 取消选中，系统标准粘贴行为保持不变。
 
 ### 权限状态与故障排查
 
-权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。普通启动不会请求权限。仅在相应权限缺失时使用权限按钮。
+权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。Veloop 绝不会主动调用 macOS 权限弹窗。权限按钮始终可以点击，并且只会打开对应的“系统设置”页面，因此也能用于检查或修改已有授权。
 
-Veloop.app 是唯一承载权限的 Veloop 应用。不会再安装独立的 Veloop Agent.app。请在两个隐私权限页面中添加或启用 `/Applications/Veloop.app`。后台运行时，Veloop 会把完整的已签名包内容复制到没有 `.app` 后缀的运行目录 `~/Library/Application Support/Veloop/AgentRuntime/Veloop`，并以 `--agent` 模式运行其中的 `Contents/MacOS/Veloop`。可执行文件内容、代码哈希、应用身份和显示名称完全相同，同时 `/Applications/Veloop.app` 不再被占用；关闭控制窗口后即可直接移到废纸篓。
+Veloop 只使用一个权限身份和一个显示名称：`Veloop`（`com.veloop.app`）。不会安装独立的 Veloop Agent.app。请在两个隐私权限页面中添加或启用 `/Applications/Veloop.app`。后台运行时，Veloop 会把完整的已签名应用包复制到隐藏运行路径 `~/Library/Application Support/Veloop/AgentRuntime/Veloop.app`，并以 `--agent` 模式运行其中的 `Contents/MacOS/Veloop`。保留 `.app` 应用包形式后，macOS 会在隐私权限列表中显示 Veloop Logo；可执行文件内容、代码哈希、应用身份和显示名称完全相同。由于运行副本位于 `/Applications` 之外，已安装的 `/Applications/Veloop.app` 不会被占用，关闭控制窗口后即可直接移到废纸篓。
 
 ad-hoc 二进制发生变化时，代码哈希也会变化，macOS 无法把旧授权安全地转移给新二进制。Veloop 检测到已安装可执行文件发生变化时，会在启动新 Agent 前清除旧的 Veloop 权限记录。ad-hoc 二进制更新后重新启用一次这两项权限，即可消除“旧 Veloop 条目显示已开启、当前二进制却被拒绝”的错误状态。
+
+曾从旧的无后缀 `AgentRuntime/Veloop` 路径运行 Agent 的开发版本，可能会在“辅助功能”中留下一个已关闭、使用通用图标的 Veloop 条目。它属于已经移除的路径型 TCC 身份，不是当前 Veloop；选中这个已关闭条目并点击一次减号即可移除。当前版本始终从 `AgentRuntime/Veloop.app` 运行 Agent，新权限条目会显示 Veloop 名称和 Logo，不会再产生这种路径型重复项。
 
 每次激活时，Veloop 都会优先查询健康的 Agent，不会先重启。socket 每个阶段的截止时间为 200 ms，仅在查询失败后执行一次恢复。如果返回状态仍缺少任一权限，Veloop 只会重启一次 Agent，等待新 socket 就绪并立即读取新的权限状态。这样也能识别用户直接在“系统设置”中进行的修改，因为 macOS 只会让新进程使用刚添加的输入监控授权；权限完整的 Agent 不会被重启，Veloop 控制应用本身保持打开。
 
 ## 卸载行为
 
-“移到废纸篓时”提供两个选择。默认的“保留历史记录和设置”会在控制窗口关闭且 `/Applications/Veloop.app` 被移到废纸篓后，移除权限、LaunchAgent、包外 Agent 运行副本、Palette、其他运行时文件和卸载监视器，但保留剪贴板历史与设置。“移除所有内容”还会删除全部 Veloop 历史、设置、偏好、缓存、保存状态和 WebKit 数据。
+“移到废纸篓时”提供两个选择。默认的“保留历史记录和设置”会在控制窗口关闭且 `/Applications/Veloop.app` 被移到废纸篓后，移除“输入监控”和“辅助功能”权限条目、LaunchAgent、包外 Agent 运行副本、Palette、其他运行时文件和卸载监视器，但保留剪贴板历史与设置。“移除所有内容”还会删除全部 Veloop 历史、设置、偏好、缓存、保存状态和 WebKit 数据。发布流程会在 macOS 本机验证权限条目确实消失，并核对 `config.json` 与 `history.json` 的内容哈希在默认保留模式下完全不变。
 
 `brew uninstall --cask veloop` 始终执行彻底清理，不受废纸篓设置影响。`brew uninstall --zap --cask veloop` 的最终状态相同。对应的直接命令是 `veloopctl uninstall --purge`。
 
@@ -119,13 +121,15 @@ ad-hoc 二进制发生变化时，代码哈希也会变化，macOS 无法把旧�
 
 Veloop 会安装一个不可见的附加式 `TISCategoryPaletteInputSource`。它与用户当前键盘输入源同时选中，因此系统拼音和其他输入法继续正常工作。Palette 不实现按键、组词、候选或文本插入处理，只保存 macOS 提供的 `IMKTextInput` 会话。
 
-每次 Command-V 切换开始时，Agent 会向当前前台应用发送一次有超时上限的本机 `CFMessagePort` 请求。辅助组件要求选区已经折叠，优先使用 `attributesForCharacterIndex:lineHeightRectangle:`，仅在线矩形无效时才读取同一文本客户端的零长度 `firstRectForCharacterRange`。Veloop 只接受位于真实显示器内、尺寸符合插入线特征的有限矩形。
+每次 Command-V 切换开始时，Agent 会首先查询 Palette，向当前前台应用发送一次有超时上限的本机 `CFMessagePort` 请求。辅助组件要求选区已经折叠，优先使用 `attributesForCharacterIndex:lineHeightRectangle:`，仅在线矩形无效时才读取同一文本客户端的零长度 `firstRectForCharacterRange`。Veloop 只接受位于真实显示器内、尺寸符合插入线特征的有限矩形。
 
-这条路径不扫描 Accessibility 树，也不使用鼠标位置、点击历史、截图、OCR、后台重试、旧位置缓存或应用特判。如果文本客户端没有返回有效坐标，Veloop 不显示浮层，也不拦截系统原始粘贴。
+如果 Palette 不可用、返回了其他进程，或提供了无效坐标，Veloop 会对当前聚焦的 Accessibility 元素执行一次回退查询。它会确认元素属于当前前台进程，要求 `AXSelectedTextRange` 已折叠，并且只读取这个选区的矩形。它不会遍历 Accessibility 树，也不会读取元素的文本；这条路径绝不会请求权限。
+
+两条路径都不使用鼠标位置、点击历史、截图、OCR、后台重试、旧位置缓存或应用特判。如果两个来源都没有返回有效坐标，Veloop 不显示浮层，也不拦截系统原始粘贴。
 
 ### 兼容性与回退行为
 
-系统拼音与 Palette 共存以及中文组词已在 TextEdit 验证。正式光标查询路径已验证 TextEdit、微信聊天输入框、备忘录、Xcode、Visual Studio Code，以及 Safari 和 Microsoft Edge 的可编辑网页输入框。浏览器地址栏等没有建立原生文本输入会话的界面不会显示浮层。
+系统拼音与 Palette 共存以及中文组词已在 TextEdit 验证。正式光标查询路径已验证 TextEdit、微信聊天输入框、备忘录、Xcode、Visual Studio Code，以及 Safari 和 Microsoft Edge 的可编辑网页输入框。借助 Accessibility 回退，已经运行的应用也不需要重新连接 Palette，Veloop 就能定位当前聚焦的可编辑区域。
 
 测试 Mac 的热请求约为 1.6-7.2 ms；这是本机测量数据，不是平台固定保证。主卡片尺寸为 `348 × 104 pt`。切换历史使用 180 ms 垂直 Depth Push；开启“减少动态效果”后改用 100 ms 淡入淡出。
 

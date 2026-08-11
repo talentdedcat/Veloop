@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 final class CaretSourceContractTests: XCTestCase {
-    func testCaretSubsystemUsesOnlyPaletteGeometry() throws {
+    func testCaretSubsystemUsesPaletteThenFocusedAccessibilityGeometry() throws {
         let source = try caretSource()
 
         for required in [
@@ -10,16 +10,20 @@ final class CaretSourceContractTests: XCTestCase {
             "CFMessagePortSendRequest",
             "paletteLineRectangle",
             "paletteRangeRectangle",
+            "AXUIElementCreateSystemWide",
+            "kAXFocusedUIElementAttribute",
+            "AXUIElementGetPid",
+            "kAXSelectedTextRangeAttribute",
+            "kAXBoundsForRangeParameterizedAttribute",
+            "accessibilityFocusedElement",
             "currentCaretLocation()",
         ] {
-            XCTAssertTrue(source.contains(required), "missing Palette contract: \(required)")
+            XCTAssertTrue(source.contains(required), "missing caret contract: \(required)")
         }
 
         for forbidden in [
-            "ApplicationServices",
-            "AXUIElement",
             "AXObserver",
-            "kAX",
+            "kAXChildrenAttribute",
             "CGEvent",
             "mouseLocation",
             "mousePointer",
@@ -31,10 +35,8 @@ final class CaretSourceContractTests: XCTestCase {
             "controlFrameEstimate",
             "scheduleRetry",
             "pollInterval",
-            "bundleIdentifier ==",
-            "bundleIdentifier !=",
         ] {
-            XCTAssertFalse(source.contains(forbidden), "obsolete caret path remains: \(forbidden)")
+            XCTAssertFalse(source.contains(forbidden), "broad caret fallback remains: \(forbidden)")
         }
     }
 
@@ -48,7 +50,7 @@ final class CaretSourceContractTests: XCTestCase {
         }
     }
 
-    func testAgentQueriesPaletteOnlyWhenCycleStarts() throws {
+    func testAgentResolvesCaretOnlyWhenCycleStarts() throws {
         let runtime = try text("Sources/Core/Agent/VeloopAgentRuntime.swift")
 
         XCTAssertTrue(runtime.contains("caretLocator.currentCaretLocation()?.globalRect"))
@@ -137,7 +139,11 @@ final class CaretSourceContractTests: XCTestCase {
             at: overlay,
             includingPropertiesForKeys: nil
         )
-        .filter { $0.pathExtension == "swift" && $0.lastPathComponent.hasPrefix("Caret") }
+        .filter {
+            $0.pathExtension == "swift"
+                && ($0.lastPathComponent.hasPrefix("Caret")
+                    || $0.lastPathComponent == "FocusedAccessibilityCaretClient.swift")
+        }
         .map { try String(contentsOf: $0, encoding: .utf8) }
         .joined(separator: "\n")
     }
