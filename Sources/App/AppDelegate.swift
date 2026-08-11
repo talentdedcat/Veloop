@@ -22,8 +22,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let localizationController = LocalizationController()
     private var controlWindowController: ControlWindowController?
     private var viewModel: ControlViewModel?
+    private var systemSettingsWasActive = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(workspaceApplicationDidActivate),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
         do {
             let cleanupPaths = VeloopCleanupPaths.userDefault()
             let cleanupController = VeloopCleanupController.live(paths: cleanupPaths)
@@ -42,8 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try migrator.migrateIfNeeded()
         } catch {
             let errorType = String(reflecting: type(of: error))
+            let nsError = error as NSError
             Self.migrationLogger.error(
-                "Permission identity migration failed type=\(errorType, privacy: .public)"
+                "Permission identity migration failed type=\(errorType, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)"
             )
             NSApplication.shared.terminate(nil)
             return
@@ -75,12 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         ensurePaletteInstalled()
 
-        let agent: AgentControlling
-        do {
-            agent = try AgentControlClient()
-        } catch {
-            agent = UnavailableControlAgent()
-        }
+        let agent = AgentControlClient(socketURL: VeloopCleanupPaths.userDefault().socket)
         let viewModel = ControlViewModel(
             agent: agent,
             lifecycle: agentRegistrationController
@@ -90,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model: viewModel,
             registrationController: agentRegistrationController
         )
+        viewModel.prepareForLaunchSynchronization()
         controller.showWindow(nil)
         self.viewModel = viewModel
         controlWindowController = controller
@@ -99,8 +103,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         guard let viewModel else { return }
-        ensurePaletteInstalled()
-        Task { await viewModel.applicationDidBecomeActive() }
+        let forcePermissionRefresh = systemSettingsWasActive
+        systemSettingsWasActive = false
+        Task {
+            await viewModel.applicationDidBecomeActive(
+                forcePermissionRefresh: forcePermissionRefresh
+            )
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -109,6 +118,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
+    }
+
+    @objc private func workspaceApplicationDidActivate(_ notification: Notification) {
+        guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                as? NSRunningApplication,
+              application.bundleIdentifier == "com.apple.systempreferences" else { return }
+        systemSettingsWasActive = true
     }
 
     private func ensurePaletteInstalled() {
@@ -132,17 +148,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         process.waitUntilExit()
         return process.terminationStatus
     }
-}
-
-private final class UnavailableControlAgent: AgentControlling, @unchecked Sendable {
-    func state() throws -> ControlState { throw UnavailableControlAgentError.unavailable }
-    func update(_ update: ControlUpdate) throws -> ControlState { throw UnavailableControlAgentError.unavailable }
-    func clearHistory() throws { throw UnavailableControlAgentError.unavailable }
-    func requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus {
-        throw UnavailableControlAgentError.unavailable
-    }
-}
-
-private enum UnavailableControlAgentError: Error {
-    case unavailable
 }

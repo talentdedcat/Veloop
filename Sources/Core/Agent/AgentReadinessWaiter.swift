@@ -10,7 +10,7 @@ final class AgentReadinessWaiter: @unchecked Sendable {
 
     init(
         socketDirectoryURL: URL,
-        timeoutMilliseconds: Int = 1_000,
+        timeoutMilliseconds: Int = 5_000,
         probe: @escaping Probe
     ) {
         self.socketDirectoryURL = socketDirectoryURL
@@ -40,6 +40,9 @@ final class AgentReadinessWaiter: @unchecked Sendable {
             Darwin.close(descriptor)
         }
         source.resume()
+        if probe(), state.markReady() {
+            ready.signal()
+        }
 
         let result = ready.wait(
             timeout: .now() + .milliseconds(timeoutMilliseconds)

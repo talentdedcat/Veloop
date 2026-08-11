@@ -291,7 +291,7 @@ final class ControlViewController: NSViewController {
         storageField.isEnabled = controlsEnabled
         storageStepper.isEnabled = controlsEnabled
         clearButton.isEnabled = controlsEnabled && (state?.historyCount ?? 0) > 0
-        accessibilitySettingsButton.isEnabled = !model.isLoading
+        accessibilitySettingsButton.isEnabled = true
 
         let errorKey = localErrorKey ?? model.inlineError.map(errorKey(for:))
         errorLabel.stringValue = errorKey.map(localization.string) ?? ""

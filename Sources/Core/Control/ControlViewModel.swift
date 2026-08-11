@@ -54,7 +54,7 @@ public final class ControlViewModel {
         self.lifecycle = lifecycle
     }
 
-    public func applicationDidBecomeActive() async {
+    public func applicationDidBecomeActive(forcePermissionRefresh: Bool = false) async {
         guard !Task.isCancelled else { return }
         if suppressNextActivation {
             suppressNextActivation = false
@@ -62,6 +62,10 @@ public final class ControlViewModel {
         }
         guard !launchSynchronizationPrepared else { return }
         guard !launchSynchronizationInProgress else { return }
+        if forcePermissionRefresh {
+            await restartAgentForPermissionRefresh()
+            return
+        }
         await synchronizeAllowingRecovery()
         guard case let .available(permissions) = permissionSyncState,
               !permissions.canCycle else { return }

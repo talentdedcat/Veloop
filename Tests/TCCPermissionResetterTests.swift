@@ -54,6 +54,23 @@ final class TCCPermissionResetterTests: XCTestCase {
         ])
     }
 
+    func testMissingCurrentBundleAfterTrashMoveDoesNotBlockRemainingCleanup() throws {
+        let recorder = CommandRecorder()
+        let resetter = TCCPermissionResetter { executable, arguments in
+            recorder.append(executable: executable, arguments: arguments)
+            return arguments.last == "com.veloop.app" ? 64 : 0
+        }
+
+        try resetter.resetVeloopPermissions()
+
+        XCTAssertEqual(recorder.arguments.count, 6)
+        XCTAssertEqual(recorder.arguments.prefix(3), [
+            ["reset", "ListenEvent", "com.veloop.app"],
+            ["reset", "Accessibility", "com.veloop.app"],
+            ["reset", "PostEvent", "com.veloop.app"],
+        ])
+    }
+
     func testLegacyResetFailureOtherThanMissingBundleIsReported() {
         let recorder = CommandRecorder()
         let resetter = TCCPermissionResetter { executable, arguments in

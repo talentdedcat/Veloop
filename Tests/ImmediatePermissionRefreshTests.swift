@@ -63,6 +63,37 @@ final class ImmediatePermissionRefreshTests: XCTestCase {
     }
 
     @MainActor
+    func testReturnFromSystemSettingsRestartsBeforePublishingRevocation() async {
+        let calls = RefreshCallRecorder()
+        let granted = refreshState(enabled: true)
+        let revoked = ControlState(
+            enabled: true,
+            historyCount: 1,
+            storageBytes: 1,
+            configuration: .default,
+            permissions: EventPermissionStatus(
+                listenEvents: false,
+                postEvents: false,
+                accessibility: false
+            )
+        )
+        let agent = RefreshAgent(
+            calls: calls,
+            results: [.success(granted), .success(revoked)]
+        )
+        let lifecycle = RefreshLifecycle(calls: calls)
+        let model = ControlViewModel(agent: agent, lifecycle: lifecycle)
+
+        await model.synchronizeOnLaunch()
+        await model.applicationDidBecomeActive(forcePermissionRefresh: true)
+
+        XCTAssertEqual(calls.values, ["state", "restart", "state"])
+        XCTAssertEqual(lifecycle.restartCount, 1)
+        XCTAssertEqual(model.state, revoked)
+        XCTAssertEqual(model.permissionSyncState, .available(revoked.permissions))
+    }
+
+    @MainActor
     func testRepeatedMissingActivationsRestartOnceUntilGrantAppears() async {
         let calls = RefreshCallRecorder()
         let missing = ControlState(

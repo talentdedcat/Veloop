@@ -3,6 +3,21 @@ import XCTest
 @testable import VeloopCore
 
 final class AgentRegistrationControllerTests: XCTestCase {
+    func testRuntimeReplacementUsesUniqueTemporaryAndBackupNames() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/Core/Agent/AgentRegistrationController.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains(#".tmp-\(UUID().uuidString)"#))
+        XCTAssertTrue(source.contains(#".old-\(UUID().uuidString)"#))
+        XCTAssertFalse(source.contains(#".tmp-(UUID().uuidString)"#))
+        XCTAssertFalse(source.contains(#".old-(UUID().uuidString)"#))
+    }
+
     func testFreshRegistrationCopiesCanonicalExecutableOutsideBundleAndUsesAgentMode() throws {
         let harness = try RegistrationHarness(statuses: [1, 0, 0, 0])
 
@@ -123,7 +138,7 @@ private final class RegistrationHarness {
         appBundleURL = applicationsDirectory.appendingPathComponent("Veloop.app", isDirectory: true)
         executableURL = appBundleURL.appendingPathComponent("Contents/MacOS/Veloop")
         agentRuntimeBundleURL = root.appendingPathComponent(
-            "home/Library/Application Support/Veloop/AgentRuntime/Veloop",
+            "home/Library/Application Support/Veloop/AgentRuntime/Veloop.app",
             isDirectory: true
         )
         agentRuntimeExecutableURL = agentRuntimeBundleURL.appendingPathComponent(

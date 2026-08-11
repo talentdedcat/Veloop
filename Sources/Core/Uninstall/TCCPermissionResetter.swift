@@ -35,7 +35,7 @@ public struct TCCPermissionResetter: TCCPermissionResetting, Sendable {
         let executable = URL(fileURLWithPath: "/usr/bin/tccutil")
         for arguments in Self.requiredCommands {
             let status = try runner(executable, arguments)
-            guard status == 0 else {
+            guard status == 0 || status == 64 else {
                 throw TCCPermissionResetError.commandFailed(arguments, status)
             }
         }

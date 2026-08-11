@@ -26,8 +26,28 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(exists("Sources/Core/CommandLine/VeloopCLI.swift"))
         XCTAssertTrue(exists("Sources/Core/CommandLine/AgentClient.swift"))
         XCTAssertTrue(exists("Sources/Core/CommandLine/AgentServer.swift"))
-        XCTAssertTrue(readme.contains("Sources/Veloopctl/"))
-        XCTAssertTrue(chineseReadme.contains("Sources/Veloopctl/"))
+        for entry in [
+            "Sources/",
+            "  App/",
+            "  Core/",
+            "    Agent/",
+            "    CommandLine/",
+            "    Permissions/",
+            "    Uninstall/",
+            "  Palette/",
+            "  UninstallWatcher/",
+            "  Veloopctl/",
+            "Tests/",
+            "Configuration/",
+            "Packaging/",
+            "Casks/",
+            "Docs/",
+        ] {
+            XCTAssertTrue(readme.contains(entry), "English layout is missing \(entry)")
+            XCTAssertTrue(chineseReadme.contains(entry), "Chinese layout is missing \(entry)")
+        }
+        XCTAssertTrue(readme.contains("[source guide](Sources/README.md)"))
+        XCTAssertTrue(chineseReadme.contains("[源码导览](../Sources/README.md)"))
         XCTAssertTrue(sourceGuide.contains("`Veloopctl` is the thin `veloopctl` entry point"))
         XCTAssertFalse(sourceGuide.contains("`CommandLine` is the thin `veloopctl` entry point"))
     }
@@ -122,28 +142,17 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertFalse(verifier.contains("~/"))
     }
 
-    func testCaskNormalUninstallRunsPurgeBeforeExactPathSafetyNets() throws {
+    func testCaskNormalUninstallRunsPurgeWithoutPrivilegedDeleteArtifact() throws {
         let cask = try text("Casks/veloop.rb")
         let uninstallStart = try XCTUnwrap(cask.range(of: "  uninstall "))
         let zapStart = try XCTUnwrap(
             cask.range(of: "\n  zap ", range: uninstallStart.lowerBound..<cask.endIndex)
         )
         let uninstall = cask[uninstallStart.lowerBound..<zapStart.lowerBound]
-        let runtimePaths = [
-            "/Applications/Veloop Agent.app",
-            "~/Applications/Veloop Agent.app",
-            "~/Library/Input Methods/VeloopPalette.app",
-            "~/Library/LaunchAgents/com.veloop.service.plist",
-            "~/Library/LaunchAgents/com.veloop.uninstall-watcher.plist",
-            "~/Library/Application Support/Veloop",
-        ]
-
         XCTAssertTrue(uninstall.contains("uninstall\", \"--purge"))
         XCTAssertTrue(uninstall.contains("must_succeed: true"))
-        XCTAssertTrue(uninstall.contains("delete:"))
-        for path in runtimePaths {
-            XCTAssertTrue(uninstall.contains(path), "normal uninstall must delete \(path)")
-        }
+        XCTAssertFalse(uninstall.contains("delete:"))
+        XCTAssertFalse(cask.contains("\"/Applications/Veloop Agent.app\""))
     }
 
     func testOnlyMainApplicationOwnsVeloopPermissionIdentity() throws {
@@ -153,7 +162,7 @@ final class PackagingContractTests: XCTestCase {
 
         XCTAssertTrue(constants.contains("bundleIdentifier = \"com.veloop.app\""))
         XCTAssertTrue(registration.contains("Contents/MacOS/Veloop"))
-        XCTAssertTrue(registration.contains("AgentRuntime/Veloop"))
+        XCTAssertTrue(registration.contains("AgentRuntime/Veloop.app"))
         XCTAssertTrue(registration.contains("\"--agent\""))
         XCTAssertFalse(registration.contains("Veloop Agent.app"))
         XCTAssertFalse(exists("Sources/Agent"))
@@ -223,7 +232,7 @@ final class PackagingContractTests: XCTestCase {
         let palette = try XCTUnwrap(
             delegate.range(of: "ensurePaletteInstalled()", range: launch.lowerBound..<delegate.endIndex)
         )
-        let agent = try XCTUnwrap(delegate.range(of: "let agent: AgentControlling"))
+        let agent = try XCTUnwrap(delegate.range(of: "let agent = AgentControlClient"))
 
         XCTAssertLessThan(palette.lowerBound, agent.lowerBound)
     }
@@ -316,7 +325,8 @@ final class PackagingContractTests: XCTestCase {
         let installer = try text("Sources/App/PaletteInputSourceInstaller.swift")
         let runtime = try text("Sources/Core/Agent/VeloopAgentRuntime.swift")
 
-        XCTAssertTrue(activator.contains("TISEnableInputSource"))
+        XCTAssertFalse(activator.contains("TISEnableInputSource"))
+        XCTAssertTrue(activator.contains("guard status(for: source).enabled else { return false }"))
         XCTAssertTrue(activator.contains("TISSelectInputSource"))
         XCTAssertTrue(activator.contains("TISDeselectInputSource"))
         XCTAssertFalse(activator.contains("TISDisableInputSource"))
@@ -335,6 +345,8 @@ final class PackagingContractTests: XCTestCase {
 
         XCTAssertTrue(delegate.contains("palette-install"))
         XCTAssertTrue(delegate.contains("String(reflecting: type(of: error))"))
+        XCTAssertTrue(delegate.contains("nsError.domain"))
+        XCTAssertTrue(delegate.contains("nsError.code"))
         XCTAssertFalse(delegate.contains("try? paletteInputSourceInstaller.ensureInstalled()"))
         XCTAssertFalse(delegate.contains("error.localizedDescription"))
     }
@@ -356,7 +368,8 @@ final class PackagingContractTests: XCTestCase {
 
         XCTAssertTrue(model.contains("!permissions.canCycle"))
         XCTAssertTrue(model.contains("restartForPermissionRefresh()"))
-        XCTAssertTrue(delegate.contains("await viewModel.applicationDidBecomeActive()"))
+        XCTAssertTrue(delegate.contains("await viewModel.applicationDidBecomeActive("))
+        XCTAssertTrue(delegate.contains("forcePermissionRefresh: forcePermissionRefresh"))
         XCTAssertFalse(delegate.contains("await viewModel.reload()"))
     }
 
@@ -377,7 +390,8 @@ final class PackagingContractTests: XCTestCase {
         let activation = try XCTUnwrap(delegate.range(of: "func applicationDidBecomeActive"))
         let suffix = delegate[activation.lowerBound...]
 
-        XCTAssertTrue(suffix.contains("Task { await viewModel.applicationDidBecomeActive() }"))
+        XCTAssertTrue(suffix.contains("await viewModel.applicationDidBecomeActive("))
+        XCTAssertTrue(suffix.contains("forcePermissionRefresh: forcePermissionRefresh"))
         XCTAssertFalse(suffix.contains("ensureRegistered"))
     }
 

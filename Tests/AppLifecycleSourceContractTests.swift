@@ -12,10 +12,17 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertTrue(delegate.contains("lifecycle: agentRegistrationController"))
         XCTAssertFalse(delegate.contains("try?"))
         XCTAssertFalse(delegate.contains("ensureRegistered"))
+        let preparation = try XCTUnwrap(launch.range(of: "viewModel.prepareForLaunchSynchronization()"))
+        let window = try XCTUnwrap(launch.range(of: "controller.showWindow(nil)"))
+        XCTAssertLessThan(preparation.lowerBound, window.lowerBound)
         XCTAssertTrue(launch.contains("Task { await viewModel.synchronizeOnLaunch() }"))
         XCTAssertFalse(launch.contains("applicationDidBecomeActive"))
-        XCTAssertTrue(activation.contains("Task { await viewModel.applicationDidBecomeActive() }"))
+        XCTAssertTrue(activation.contains("await viewModel.applicationDidBecomeActive("))
         XCTAssertFalse(activation.contains("synchronizeOnLaunch"))
+        XCTAssertTrue(delegate.contains("NSWorkspace.didActivateApplicationNotification"))
+        XCTAssertTrue(delegate.contains("com.apple.systempreferences"))
+        XCTAssertTrue(delegate.contains("forcePermissionRefresh:"))
+        XCTAssertFalse(activation.contains("ensurePaletteInstalled()"))
     }
 
     func testAppInstallsUninstallWatcherAfterIdentityMigrationBeforeDisplayingWindow() throws {
@@ -50,17 +57,18 @@ final class AppLifecycleSourceContractTests: XCTestCase {
             synchronization.range(of: "try lifecycle.ensureRegisteredAndRunning()")
         )
         let recoveredState = try XCTUnwrap(
-            synchronization.range(of: "let recoveredState")
+            synchronization.range(of: "var recoveredState")
         )
 
         XCTAssertLessThan(fastState.lowerBound, recovery.lowerBound)
         XCTAssertLessThan(recovery.lowerBound, recoveredState.lowerBound)
-        XCTAssertEqual(synchronization.components(separatedBy: "try agent.state()").count - 1, 2)
+        XCTAssertEqual(synchronization.components(separatedBy: "try agent.state()").count - 1, 3)
         XCTAssertFalse(model.contains("Task.sleep"))
         XCTAssertFalse(model.contains("retryPolicy"))
         XCTAssertFalse(model.contains("restartRegisteredAgent"))
         XCTAssertTrue(model.contains("restartAgentForPermissionRefresh"))
         XCTAssertTrue(model.contains("!permissions.canCycle"))
+        XCTAssertTrue(model.contains("if forcePermissionRefresh"))
         XCTAssertFalse(model.contains("permissionRefreshPending"))
         XCTAssertTrue(synchronization.contains("publishFailure(.agentUnavailable"))
         XCTAssertFalse(model.contains("convenience init(agent:"))
@@ -130,17 +138,14 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertFalse(registration.contains("launchApplication"))
     }
 
-    func testUnavailableAgentUsesGroupedRequestAndDoesNotOwnRestart() throws {
+    func testAppAlwaysUsesRecoverableSocketClientInsteadOfPermanentUnavailableFallback() throws {
         let delegate = try text("Sources/App/AppDelegate.swift")
-        let unavailable = try classBody(named: "UnavailableControlAgent", in: delegate)
 
         XCTAssertTrue(delegate.contains(
-            "class UnavailableControlAgent: AgentControlling, @unchecked Sendable"
+            "AgentControlClient(socketURL: VeloopCleanupPaths.userDefault().socket)"
         ))
-        XCTAssertTrue(unavailable.contains(
-            "requestPermissions(_ group: EventPermissionGroup) throws -> EventPermissionStatus"
-        ))
-        XCTAssertFalse(unavailable.contains("func restart"))
+        XCTAssertFalse(delegate.contains("UnavailableControlAgent"))
+        XCTAssertFalse(delegate.contains("try AgentControlClient()"))
     }
 
     func testStartAtLoginMutationUsesSerialBackgroundBoundaryAndPublishesOnMainActor() throws {
@@ -189,7 +194,7 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertTrue(registration.contains("/Applications/Veloop.app"))
         XCTAssertTrue(registration.contains("appendingPathComponent(\"Contents/MacOS/Veloop\")"))
         XCTAssertTrue(registration.contains(
-            "Library/Application Support/Veloop/AgentRuntime/Veloop"
+            "Library/Application Support/Veloop/AgentRuntime/Veloop.app"
         ))
         XCTAssertTrue(registration.contains("[agentRuntimeExecutableURL.path, \"--agent\"]"))
         XCTAssertTrue(registration.contains("copyItem(at: applicationBundleURL"))

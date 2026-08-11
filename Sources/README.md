@@ -14,9 +14,32 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 
 `Veloopctl` is the thin `veloopctl` entry point. Argument parsing, bounded Unix-socket IPC, and privacy-safe output remain in Core so they can be exercised independently.
 
+### Core ownership
+
+| Directory | Responsibility |
+| --- | --- |
+| `Core/Agent/` | Background runtime startup, request handling, and Agent registration. |
+| `Core/Clipboard/` | Pasteboard capture policy, materialization, snapshots, and restoration. |
+| `Core/CommandLine/` | Public CLI parser, Agent protocol, bounded socket client, and server. |
+| `Core/Configuration/` | Validated persisted runtime configuration. |
+| `Core/Control/` | Control-window state, updates, and permission-refresh coordination. |
+| `Core/History/` | History indexing, retention, leases, and snapshot repository. |
+| `Core/Input/` | Event Tap lifecycle, keyboard normalization, cycling, and paste injection. |
+| `Core/Overlay/` | Palette and Accessibility caret location plus Focus Stack presentation. |
+| `Core/Permissions/` | Listening, posting, and Accessibility capability preflight. |
+| `Core/Storage/` | Atomic manifests, content-addressed blobs, and file snapshots. |
+| `Core/Support/` | Constants, launch modes, logging, hashing, locking, and system wrappers. |
+| `Core/Uninstall/` | Trash policy, uninstall watcher support, TCC reset, and exact cleanup. |
+
+Repository-level release support lives in `Configuration/` for bundle metadata, `Packaging/` for release and DMG scripts, `Casks/` for Homebrew installation, `Tests/` for contracts, and `Docs/` for localized product documentation and media.
+
+### Command-line surface
+
+Homebrew links the bundled `Veloop.app/Contents/Resources/veloopctl` executable onto `PATH`; DMG users can invoke that full path directly. Agent-backed public commands are `status`, `pause`, `resume`, `clear`, `count`, `storage`, `doctor`, `config get`, and `config set <key> <value>`. Local commands are `open-data-directory`, `uninstall --purge`, and `version`. `restart` is not a supported public command. The accepted configuration keys are defined by `VeloopAgentRuntime.applyConfigurationValue`; capture-policy and polling changes apply when the Agent next starts, while limits, enabled state, and content-preview changes synchronize immediately.
+
 The Core module is shared by the shipped executables and the XCTest contracts. System API ownership stays in focused wrappers so capture, retention, presentation, and control logic remain independently testable.
 
-The same signed `Veloop` executable runs in `--agent` mode under the single `com.veloop.app` permission identity. Accessibility is the only user-configured permission; the Agent still preflights listening, posting, and AX trust independently. Registration copies the signed application bundle to `Application Support/Veloop/AgentRuntime/Veloop.app` before launching its `Contents/MacOS/Veloop`; the `.app` suffix preserves the Veloop icon in macOS privacy lists, while running outside the canonical bundle lets Finder move the installed app to Trash. Cleanup removes both this runtime bundle and the legacy extensionless `AgentRuntime/Veloop` path. The control app performs one bounded state request before recovery on every activation. When that state lacks any required capability, it force-restarts only the Agent once and reads the replacement process state, because macOS activates a newly added Accessibility grant for a new process. Fully authorized activations never restart the Agent. A changed ad-hoc executable hash triggers targeted stale-permission cleanup before the new Agent starts.
+The same signed `Veloop` executable runs in `--agent` mode under the single `com.veloop.app` permission identity. Accessibility is the only user-configured permission; the Agent still preflights listening, posting, and AX trust independently. Registration copies the signed application bundle to `Application Support/Veloop/AgentRuntime/Veloop.app` before launching its `Contents/MacOS/Veloop`; the `.app` suffix preserves the Veloop icon in macOS privacy lists, while running outside the canonical bundle lets Finder move the installed app to Trash. Cleanup removes both this runtime bundle and the legacy extensionless `AgentRuntime/Veloop` path. The control app performs one bounded state request before recovery on every ordinary activation. It force-restarts the Agent before reading permission state after System Settings because an existing process may retain cached TCC results in either direction. Fully authorized ordinary activations never restart the Agent. The input path never re-enables a tap disabled by user input; it interrupts the cycle and leaves standard keyboard input untouched. A changed ad-hoc executable hash triggers targeted stale-permission cleanup before the new Agent starts.
 
 ## Runtime flow
 
@@ -24,7 +47,7 @@ The same signed `Veloop` executable runs in `--agent` mode under the single `com
 2. `PasteboardCapturer` materializes ordered items and type representations on a serial utility queue.
 3. `HistoryStore` atomically commits manifests, retains referenced blobs or file snapshots, and applies configured quotas.
 4. `EventTapManager` normalizes global keyboard events into `PasteCycleController` while keeping storage and preview work outside the Event Tap callback.
-5. At cycle start, the Agent queries the Palette first for one current caret rectangle. If that result is unavailable, mismatched, or invalid, it queries only the focused Accessibility element's collapsed selection bounds. The fallback uses existing authorization and does not request permission. If both sources fail validation, standard paste behavior remains untouched.
+5. At cycle start, the Agent queries the Palette first for one current caret rectangle when macOS already reports that input source as enabled. Veloop never calls `TISEnableInputSource`. If the Palette is disabled, unavailable, mismatched, or invalid, it queries only the focused Accessibility element's collapsed selection bounds. The fallback uses existing authorization and does not request permission. If both sources fail validation, standard paste behavior remains untouched.
 6. `CyclePresentationRelay` coalesces rapid selections before preview work reaches the main queue and the nonactivating Focus Stack panel.
 7. Command release hides the panel, restores the selected snapshot, and dispatches one marked synthetic paste event. Escape cancels without changing the pasteboard.
 8. The Agent persists successful-use order so retention can evict the least recently used unprotected snapshot first.

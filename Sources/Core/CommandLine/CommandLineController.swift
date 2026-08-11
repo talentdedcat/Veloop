@@ -47,7 +47,7 @@ final class CommandLineController {
 
         let request: AgentRequest
         switch command {
-        case "status", "pause", "resume", "clear", "count", "storage", "doctor", "restart":
+        case "status", "pause", "resume", "clear", "count", "storage", "doctor":
             guard arguments.count == 1 else {
                 return usage()
             }
@@ -67,7 +67,7 @@ final class CommandLineController {
             }
             return failure(response.error ?? "The command failed.")
         } catch AgentClientError.agentUnavailable {
-            return failure("Veloop is not running. Open Veloop from /Applications or run veloopctl restart.")
+            return failure("Veloop is not running. Open Veloop from /Applications and try again.")
         } catch {
             return failure("Could not communicate with Veloop.")
         }
@@ -89,7 +89,7 @@ final class CommandLineController {
         CommandLineResult(
             exitCode: 2,
             standardOutput: "",
-            standardError: "Usage: veloopctl status|pause|resume|clear|count|storage|doctor|config get|config set <key> <value>|open-data-directory|restart|uninstall --purge|version\n"
+            standardError: "Usage: veloopctl status|pause|resume|clear|count|storage|doctor|config get|config set <key> <value>|open-data-directory|uninstall --purge|version\n"
         )
     }
 }

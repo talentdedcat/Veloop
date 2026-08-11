@@ -48,9 +48,9 @@ final class ReleaseMetadataTests: XCTestCase {
             "clears stale Veloop permission records",
             "Re-enable Accessibility once after an ad-hoc binary update",
             "queries the healthy Agent first without restarting it",
-            "If the returned state still lacks any required capability",
-            "reads the fresh permission state immediately",
-            "changes made directly in System Settings",
+            "Returning from System Settings force-restarts only the Agent before reading permission state",
+            "never re-enables an Event Tap disabled by user input",
+            "reports both directions accurately",
             "AgentRuntime/Veloop.app",
             "can be moved directly to Trash",
             "removes current and legacy Veloop permission records",
@@ -63,6 +63,7 @@ final class ReleaseMetadataTests: XCTestCase {
             "Accessibility is the only permission users need to enable",
             "verifies listening, posting, and Accessibility access separately",
             "queries the Palette first",
+            "never asks macOS to enable the Palette input source",
             "focused Accessibility element",
             "does not traverse the Accessibility tree",
             "already-running applications do not need to reconnect to the Palette",
@@ -93,9 +94,9 @@ final class ReleaseMetadataTests: XCTestCase {
             "清除旧的 Veloop 权限记录",
             "ad-hoc 二进制更新后重新启用一次“辅助功能”",
             "优先查询健康的 Agent，不会先重启",
-            "如果返回状态仍缺少任一必需能力",
-            "立即读取新的权限状态",
-            "直接在“系统设置”中进行的修改",
+            "从“系统设置”返回 Veloop 时，会先仅重启 Agent",
+            "绝不会重新启用因用户输入而被禁用的 Event Tap",
+            "准确识别两个方向的变化",
             "AgentRuntime/Veloop.app",
             "直接移到废纸篓",
             "移除当前和旧版 Veloop 权限记录",
@@ -108,6 +109,7 @@ final class ReleaseMetadataTests: XCTestCase {
             "用户只需开启“辅助功能”",
             "分别检查监听、事件发送和 Accessibility 访问能力",
             "首先查询 Palette",
+            "绝不会请求 macOS 启用 Palette 输入源",
             "当前聚焦的 Accessibility 元素",
             "不会遍历 Accessibility 树",
             "已经运行的应用不需要重新连接 Palette",
@@ -127,10 +129,11 @@ final class ReleaseMetadataTests: XCTestCase {
             "The same signed `Veloop` executable runs in `--agent` mode"
         ))
         XCTAssertTrue(sourceGuide.contains("one bounded state request before recovery"))
-        XCTAssertTrue(sourceGuide.contains("force-restarts only the Agent once"))
+        XCTAssertTrue(sourceGuide.contains("force-restarts the Agent before reading permission state after System Settings"))
+        XCTAssertTrue(sourceGuide.contains("never re-enables a tap disabled by user input"))
         XCTAssertTrue(sourceGuide.contains("Accessibility is the only user-configured permission"))
-        XCTAssertTrue(sourceGuide.contains("lacks any required capability"))
         XCTAssertTrue(sourceGuide.contains("queries the Palette first"))
+        XCTAssertTrue(sourceGuide.contains("never calls `TISEnableInputSource`"))
         XCTAssertTrue(sourceGuide.contains("focused Accessibility element"))
         XCTAssertTrue(sourceGuide.contains("does not request permission"))
         XCTAssertFalse(sourceGuide.contains("copies the signed embedded Agent"))

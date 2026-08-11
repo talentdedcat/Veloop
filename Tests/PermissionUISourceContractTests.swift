@@ -62,13 +62,14 @@ final class PermissionUISourceContractTests: XCTestCase {
         XCTAssertTrue(missing.contains("systemOrange"))
     }
 
-    func testAccessibilityButtonRemainsAvailableOutsideLoadingState() throws {
+    func testAccessibilityButtonRemainsAvailableInEveryState() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
         let render = try functionBody(named: "render", in: controller)
 
         XCTAssertTrue(render.contains(
-            "accessibilitySettingsButton.isEnabled = !model.isLoading"
+            "accessibilitySettingsButton.isEnabled = true"
         ))
+        XCTAssertFalse(render.contains("accessibilitySettingsButton.isEnabled = !model.isLoading"))
         XCTAssertFalse(controller.contains("inputSettingsButton"))
     }
 

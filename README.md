@@ -55,7 +55,7 @@ brew install --cask Veloop
 > open /Applications/Veloop.app
 > ```
 
-After launching Veloop, enable **Start at login** in the control app if you want the Agent to run automatically. The DMG contains `Veloop.app` and an Applications shortcut. On macOS 26, a newly registered Character Palette may require one sign-out and sign-in before the current login session discovers it.
+After launching Veloop, enable **Start at login** in the control app if you want the Agent to run automatically. The DMG contains `Veloop.app` and an Applications shortcut. The Character Palette is an optional caret-positioning optimization; the Accessibility fallback works without it. On macOS 26, an already enabled Palette may require one sign-out and sign-in before the current login session discovers a newly registered copy.
 
 ## Quick start
 
@@ -87,19 +87,19 @@ Accessibility is the only permission users need to enable. Approve Veloop in **S
 
 Accessibility grants the event-listening and event-posting capabilities Veloop needs, so no separate Input Monitoring setup is required. Veloop verifies listening, posting, and Accessibility access separately before enabling clipboard cycling. It is therefore normal for Veloop to work without appearing in the Input Monitoring list.
 
-Caret positioning queries the Palette first. Only when that result is unavailable or invalid does Veloop read the collapsed selection bounds of the current focused Accessibility element, and only when Accessibility is already authorized. Clipboard capture continues without Accessibility. When Veloop is disabled or required event listening is unavailable, the global Event Tap stops, the hidden Palette is deselected, and standard paste behavior remains unchanged.
+Caret positioning queries the Palette first when that input source is already enabled by macOS. Veloop never asks macOS to enable the Palette input source, so launching or activating Veloop does not produce an input-source confirmation dialog. When the Palette is disabled, unavailable, or returns invalid geometry, Veloop reads the collapsed selection bounds of the current focused Accessibility element, and only when Accessibility is already authorized. Clipboard capture continues without Accessibility. When Veloop is disabled or required event listening is unavailable, the global Event Tap stops, the hidden Palette is deselected, and standard paste behavior remains unchanged.
 
 ### Permission status and troubleshooting
 
-Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” Veloop never invokes the macOS permission prompt. The permission button remains available at all times and only opens the Accessibility pane in System Settings, so it can also be used to inspect or change an existing grant.
+Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” Veloop never invokes the macOS permission prompt. The permission button remains enabled at all times, including while the Agent is connecting or checking, and only opens the Accessibility pane in System Settings, so it can also be used to inspect or change an existing grant.
 
 Veloop uses one permission identity and one display name: `Veloop` (`com.veloop.app`). No separate Veloop Agent.app is installed. In the Accessibility pane, add or enable `/Applications/Veloop.app`. For background operation, Veloop copies the exact signed application bundle to the hidden runtime path `~/Library/Application Support/Veloop/AgentRuntime/Veloop.app` and runs its `Contents/MacOS/Veloop` in `--agent` mode. Keeping the `.app` bundle form lets macOS show the Veloop logo in privacy lists; the executable bytes, code hash, application identity, and display name remain the same. Because the runtime copy is outside `/Applications`, the installed `/Applications/Veloop.app` is not held open and can be moved directly to Trash after the control window is closed.
 
-Because a changed ad-hoc binary has a new code hash, macOS cannot safely transfer the old grant to that binary. When Veloop detects a changed installed executable, it clears stale Veloop permission records before starting the new Agent. Re-enable Accessibility once after an ad-hoc binary update; this removes the misleading case where an old Veloop row appears enabled but the current binary is denied.
+Because a changed ad-hoc binary has a new code hash, macOS cannot safely transfer the old grant to that binary. When Veloop detects a changed installed executable, it clears stale Veloop permission records before starting the new Agent. Re-enable Accessibility once after an ad-hoc binary update; this removes the misleading case where an old Veloop row appears enabled but the current binary is denied. Reopening the same installed build does not change its code hash or reset its grant, so ordinary launches do not require authorization again.
 
 Development builds that ran the Agent from the old extensionless `AgentRuntime/Veloop` path could leave one disabled Veloop row with a generic icon in Accessibility. That row belongs to the removed path-based TCC identity, not the current Veloop. Select that disabled row and use the minus button once to remove it. Current builds always run the Agent from `AgentRuntime/Veloop.app`, so new permission rows use the Veloop name and logo and this path-based duplicate is not created again.
 
-On every activation, Veloop queries the healthy Agent first without restarting it. Socket operations have a 200 ms per-phase deadline, and recovery runs only after that query fails. If the returned state still lacks any required capability, Veloop restarts only the Agent once, waits for its new socket, and reads the fresh permission state immediately. This also detects changes made directly in System Settings because macOS applies a newly added Accessibility grant to a new process; a fully authorized Agent is never restarted, and the Veloop control app stays open.
+On every ordinary activation, Veloop queries the healthy Agent first without restarting it. Socket operations have a 200 ms per-phase deadline, and recovery runs only after that query fails. Returning from System Settings force-restarts only the Agent before reading permission state, because an already-running process can retain a cached TCC result after either a grant or revocation. The replacement process therefore reports both directions accurately without closing the Veloop control app. Independently, Veloop interrupts the current cycle and never re-enables an Event Tap disabled by user input; standard keyboard input remains the fail-safe path even before the control window refreshes.
 
 ## Uninstall behavior
 
@@ -117,7 +117,7 @@ The control app manages the background Agent, launch at login, content previews,
 
 ## How Focus Stack works
 
-Veloop installs an invisible, additive `TISCategoryPaletteInputSource`. It is selected alongside the user's keyboard input source, so System Pinyin and other input methods remain active. The Palette implements no key, composition, candidate, or insertion handlers; it only retains the `IMKTextInput` session supplied by macOS.
+Veloop registers an invisible, additive `TISCategoryPaletteInputSource`. If macOS already reports it as enabled, Veloop selects it alongside the user's keyboard input source, so System Pinyin and other input methods remain active. Veloop never calls `TISEnableInputSource`; when the Palette is not enabled, caret placement proceeds through the Accessibility fallback without prompting. The Palette implements no key, composition, candidate, or insertion handlers; it only retains the `IMKTextInput` session supplied by macOS.
 
 When a Command-V cycle begins, the Agent queries the Palette first with one bounded local `CFMessagePort` request to the current frontmost application. The helper requires a collapsed selection, prefers `attributesForCharacterIndex:lineHeightRectangle:`, and falls back to the same client's zero-length `firstRectForCharacterRange` only when the line rectangle is invalid. Veloop accepts only a finite, line-sized rectangle on a real display.
 
@@ -156,6 +156,8 @@ For local file URLs, Veloop stores the original representation and copies the re
 
 ## Command line
 
+Homebrew exposes `veloopctl` on `PATH`. A DMG installation keeps the same executable inside the application bundle; invoke it as `/Applications/Veloop.app/Contents/Resources/veloopctl` when it is not on `PATH`.
+
 ```bash
 veloopctl status
 veloopctl pause
@@ -165,24 +167,42 @@ veloopctl count
 veloopctl storage
 veloopctl doctor
 veloopctl config get
+veloopctl config set maximumHistoryCount 200
 veloopctl open-data-directory
-veloopctl restart
 veloopctl uninstall --purge
 veloopctl version
 ```
 
-The Agent and CLI communicate through a mode-`0600` Unix-domain socket and never listen on TCP.
+The Agent-backed commands are `status`, `pause`, `resume`, `clear`, `count`, `storage`, `doctor`, `config get`, and `config set`. `open-data-directory`, `uninstall --purge`, and `version` run locally and do not require a live Agent. Numeric configuration keys are `maximumHistoryCount`, `maximumDiskBytes`, `maximumSingleSnapshotBytes`, and `pollIntervalMilliseconds`; each requires an integer greater than zero. Boolean keys are `captureConcealed`, `captureTransient`, `captureAutoGenerated`, `startEnabled`, and `showContentPreviews`, with `true` or `false` values. Limit, enabled-state, and preview changes are synchronized immediately; capture-policy and polling changes apply the next time the Agent starts.
+
+The Agent and CLI communicate through a mode-`0600` Unix-domain socket and never listen on TCP. `restart` is not part of the supported public command surface.
 
 ## Project layout
 
 ```text
-Sources/App/             control app and localization
-Sources/Core/            capture, history, input, overlay, storage, and IPC
-Sources/UninstallWatcher/ plain event-driven uninstall watcher entry point
-Sources/Veloopctl/       embedded veloopctl entry point
-Sources/Palette/         additive InputMethodKit caret bridge
+Sources/
+  App/                   control UI, localization, and the --agent entry mode
+  Core/
+    Agent/               background runtime and registration
+    Clipboard/           pasteboard capture, snapshots, and restoration
+    CommandLine/         CLI parsing, protocol, socket client, and server
+    Configuration/       persisted runtime configuration
+    Control/             control-window state and Agent coordination
+    History/             history index, retention, and repository
+    Input/               global Event Tap and paste-cycle state
+    Overlay/             caret location and Focus Stack presentation
+    Permissions/         event and Accessibility preflight checks
+    Storage/             atomic manifests, blobs, and file snapshots
+    Support/             constants, logging, locking, and system wrappers
+    Uninstall/           Trash watcher policy, TCC reset, and cleanup
+  Palette/               additive InputMethodKit caret bridge
+  UninstallWatcher/      plain event-driven uninstall watcher entry point
+  Veloopctl/             embedded veloopctl executable entry point
 Tests/                   behavioral and packaging contracts
-Docs/                    localized README and product media
+Configuration/           application and Palette bundle metadata
+Packaging/               release build, DMG creation, and verification scripts
+Casks/                   Homebrew Cask definition
+Docs/                    localized README, product media, specs, and plans
 ```
 
 See the [source guide](Sources/README.md) for module ownership, runtime flow, and architectural invariants.

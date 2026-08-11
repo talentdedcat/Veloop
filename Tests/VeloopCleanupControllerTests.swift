@@ -3,6 +3,25 @@ import XCTest
 @testable import VeloopCore
 
 final class VeloopCleanupControllerTests: XCTestCase {
+    func testPreserveRemovesLegacySingleFileAndCurrentAgentRuntime() throws {
+        let harness = try CleanupHarness()
+        try FileManager.default.createDirectory(
+            at: harness.paths.agentRuntimeDirectory,
+            withIntermediateDirectories: true
+        )
+        try Data("legacy-agent".utf8).write(to: harness.paths.legacyAgentRuntimeBundle)
+        try FileManager.default.createDirectory(
+            at: harness.paths.agentRuntimeBundle,
+            withIntermediateDirectories: true
+        )
+
+        try harness.controller.cleanup(scope: .preserveUserData, includeWatcher: false)
+
+        XCTAssertFalse(harness.exists(harness.paths.legacyAgentRuntimeBundle))
+        XCTAssertFalse(harness.exists(harness.paths.agentRuntimeBundle))
+        XCTAssertFalse(harness.exists(harness.paths.agentRuntimeDirectory))
+    }
+
     func testPreserveRemovesPermissionsAndRuntimeButKeepsUserData() throws {
         let harness = try CleanupHarness()
         try harness.populateAllPaths()
@@ -125,7 +144,8 @@ private final class CleanupHarness {
         )
         if url == paths.watcherDirectory
             || url == paths.agentRuntimeDirectory
-            || url == paths.agentRuntimeBundle {
+            || url == paths.agentRuntimeBundle
+            || url == paths.legacyAgentRuntimeBundle {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         } else {
             XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: Data("x".utf8)))

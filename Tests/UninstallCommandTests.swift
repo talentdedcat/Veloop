@@ -50,7 +50,7 @@ final class UninstallCommandTests: XCTestCase {
         XCTAssertEqual(result.standardError, "Veloop could not be completely removed.\n")
     }
 
-    func testCaskOrdinaryUninstallRunsPurgeAndListsEverySafetyNetPath() throws {
+    func testCaskOrdinaryUninstallUsesPurgeScriptWithoutPrivilegedDeleteArtifact() throws {
         let cask = try repositoryText("Casks/veloop.rb")
         let uninstallStart = try XCTUnwrap(cask.range(of: "  uninstall "))
         let zapStart = try XCTUnwrap(
@@ -58,13 +58,26 @@ final class UninstallCommandTests: XCTestCase {
         )
         let uninstall = String(cask[uninstallStart.lowerBound..<zapStart.lowerBound])
 
-        XCTAssertTrue(uninstall.contains("executable: \"#{appdir}/Veloop.app/Contents/Resources/veloopctl\""))
-        XCTAssertTrue(uninstall.contains("args:       [\"uninstall\", \"--purge\"]"))
+        XCTAssertTrue(uninstall.contains("executable:"))
+        XCTAssertTrue(uninstall.contains(
+            "\"#{appdir}/Veloop.app/Contents/Resources/veloopctl\""
+        ))
+        XCTAssertTrue(uninstall.contains("args:"))
+        XCTAssertTrue(uninstall.contains("[\"uninstall\", \"--purge\"]"))
         XCTAssertTrue(uninstall.contains("must_succeed: true"))
         XCTAssertTrue(uninstall.contains("com.veloop.service"))
         XCTAssertTrue(uninstall.contains("com.veloop.uninstall-watcher"))
+        XCTAssertFalse(uninstall.contains("delete:"))
+        XCTAssertFalse(
+            cask.contains("\"/Applications/Veloop Agent.app\""),
+            "system Applications safety net must remain in veloopctl to avoid sudo"
+        )
+        XCTAssertTrue(
+            try repositoryText("Sources/Core/Uninstall/VeloopCleanupPaths.swift")
+                .contains("Veloop Agent.app")
+        )
         for path in allSafetyNetPaths {
-            XCTAssertTrue(uninstall.contains(path), "ordinary uninstall must remove \(path)")
+            XCTAssertTrue(cask.contains(path), "zap must retain user-path safety net \(path)")
         }
     }
 }
@@ -78,7 +91,6 @@ private func repositoryText(_ path: String) throws -> String {
 }
 
 private let allSafetyNetPaths = [
-    "/Applications/Veloop Agent.app",
     "~/Applications/Veloop Agent.app",
     "~/Library/Application Support/Veloop",
     "~/Library/Caches/com.veloop.app",

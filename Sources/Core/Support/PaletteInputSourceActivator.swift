@@ -28,7 +28,7 @@ public enum PaletteInputSourceActivator {
     public static func activate() -> Bool {
         precondition(Thread.isMainThread)
         guard let source = matchingInputSource() else { return false }
-        guard TISEnableInputSource(source) == noErr else { return false }
+        guard status(for: source).enabled else { return false }
         return TISSelectInputSource(source) == noErr
     }
 

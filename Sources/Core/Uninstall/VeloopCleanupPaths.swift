@@ -13,6 +13,7 @@ public struct VeloopCleanupPaths: Sendable {
     public let paletteHostMarker: URL
     public let agentRuntimeDirectory: URL
     public let agentRuntimeBundle: URL
+    public let legacyAgentRuntimeBundle: URL
     public let agentRuntimeExecutable: URL
     public let watcherDirectory: URL
     public let watcherExecutable: URL
@@ -51,6 +52,10 @@ public struct VeloopCleanupPaths: Sendable {
             isDirectory: true
         )
         agentRuntimeBundle = agentRuntimeDirectory.appendingPathComponent(
+            "Veloop.app",
+            isDirectory: true
+        )
+        legacyAgentRuntimeBundle = agentRuntimeDirectory.appendingPathComponent(
             "Veloop",
             isDirectory: true
         )
@@ -125,7 +130,7 @@ public struct VeloopCleanupPaths: Sendable {
             processLock,
             permissionIdentityReceipt,
             paletteHostMarker,
-            agentRuntimeExecutable,
+            legacyAgentRuntimeBundle,
             agentRuntimeBundle,
             agentRuntimeDirectory,
             agentLaunchAgent,

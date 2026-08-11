@@ -11,6 +11,10 @@ final class EventTapManager {
         self.controller = controller
     }
 
+    static func shouldReenable(after type: CGEventType) -> Bool {
+        type == .tapDisabledByTimeout
+    }
+
     @discardableResult
     func start() -> Bool {
         guard eventTap == nil else {
@@ -59,8 +63,12 @@ final class EventTapManager {
     func process(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             controller.interrupt()
-            if let eventTap {
+            if Self.shouldReenable(after: type), let eventTap {
                 CGEvent.tapEnable(tap: eventTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.stop()
+                }
             }
             return Unmanaged.passUnretained(event)
         }

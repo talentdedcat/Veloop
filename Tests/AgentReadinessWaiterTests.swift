@@ -35,6 +35,21 @@ final class AgentReadinessWaiterTests: XCTestCase {
         XCTAssertTrue(waiter.wait())
     }
 
+    func testSecondProbeAfterWatcherRegistrationClosesCreationRace() throws {
+        let directory = try temporaryDirectory()
+        let readiness = ReadinessSequence([false, true])
+        let waiter = AgentReadinessWaiter(
+            socketDirectoryURL: directory,
+            timeoutMilliseconds: 500,
+            probe: { readiness.next() }
+        )
+        let started = Date()
+
+        XCTAssertTrue(waiter.wait())
+        XCTAssertEqual(readiness.count, 2)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.1)
+    }
+
     func testDeadlineReturnsFalseWithoutPolling() throws {
         let directory = try temporaryDirectory()
         let probes = ReadinessProbeCounter()
@@ -46,7 +61,7 @@ final class AgentReadinessWaiterTests: XCTestCase {
         let started = Date()
 
         XCTAssertFalse(waiter.wait())
-        XCTAssertEqual(probes.count, 1)
+        XCTAssertEqual(probes.count, 2)
         XCTAssertLessThan(Date().timeIntervalSince(started), 0.8)
     }
 
@@ -56,6 +71,25 @@ final class AgentReadinessWaiterTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         return directory
+    }
+}
+
+private final class ReadinessSequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [Bool]
+    private var storageCount = 0
+
+    init(_ values: [Bool]) {
+        self.values = values
+    }
+
+    var count: Int { lock.withLock { storageCount } }
+
+    func next() -> Bool {
+        lock.withLock {
+            storageCount += 1
+            return values.isEmpty ? false : values.removeFirst()
+        }
     }
 }
 

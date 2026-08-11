@@ -89,7 +89,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         applicationExecutableURL = appBundle.appendingPathComponent("Contents/MacOS/Veloop")
         self.agentRuntimeBundleURL = agentRuntimeBundleURL
             ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(
-                "Library/Application Support/Veloop/AgentRuntime/Veloop",
+                "Library/Application Support/Veloop/AgentRuntime/Veloop.app",
                 isDirectory: true
             )
         agentRuntimeExecutableURL = self.agentRuntimeBundleURL.appendingPathComponent(
@@ -249,8 +249,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
 
         let parent = agentRuntimeBundleURL.deletingLastPathComponent()
-        let temporary = parent.appendingPathComponent(".tmp-(UUID().uuidString)")
-        let backup = parent.appendingPathComponent(".old-(UUID().uuidString)")
+        let temporary = parent.appendingPathComponent(".tmp-\(UUID().uuidString)")
+        let backup = parent.appendingPathComponent(".old-\(UUID().uuidString)")
         try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
         do {
             try fileManager.copyItem(at: applicationBundleURL, to: temporary)
