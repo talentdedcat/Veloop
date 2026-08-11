@@ -123,7 +123,7 @@ private final class CleanupHarness {
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        if url == paths.watcherDirectory {
+        if url == paths.watcherDirectory || url == paths.agentRuntimeDirectory {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         } else {
             XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: Data("x".utf8)))

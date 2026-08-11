@@ -153,6 +153,7 @@ final class PackagingContractTests: XCTestCase {
 
         XCTAssertTrue(constants.contains("bundleIdentifier = \"com.veloop.app\""))
         XCTAssertTrue(registration.contains("Contents/MacOS/Veloop"))
+        XCTAssertTrue(registration.contains("AgentRuntime/Veloop"))
         XCTAssertTrue(registration.contains("\"--agent\""))
         XCTAssertFalse(registration.contains("Veloop Agent.app"))
         XCTAssertFalse(exists("Sources/Agent"))

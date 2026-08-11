@@ -95,7 +95,7 @@ Caret positioning does not use Accessibility permission. Clipboard capture conti
 
 Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” An ordinary launch does not prompt for permissions. Use the permission buttons only when the corresponding permission is missing.
 
-Veloop.app is the only permission-bearing Veloop application. No separate Veloop Agent.app is installed. In each privacy pane, add or enable `/Applications/Veloop.app`; the background process runs the same executable in `--agent` mode and therefore uses the same application identity and display name.
+Veloop.app is the only permission-bearing Veloop application. No separate Veloop Agent.app is installed. In each privacy pane, add or enable `/Applications/Veloop.app`. For background operation, Veloop atomically copies that exact signed executable to `~/Library/Application Support/Veloop/AgentRuntime/Veloop` and runs the copy in `--agent` mode. The bytes, code hash, application identity, and display name remain the same, while `/Applications/Veloop.app` is no longer held open and can be moved directly to Trash after the control window is closed.
 
 Because a changed ad-hoc binary has a new code hash, macOS cannot safely transfer the old grant to that binary. When Veloop detects a changed installed executable, it clears stale Veloop permission records before starting the new Agent. Re-enable both permissions once after an ad-hoc binary update; this removes the misleading case where an old Veloop row appears enabled but the current binary is denied.
 
@@ -103,7 +103,7 @@ On every activation, Veloop queries the healthy Agent first without restarting i
 
 ## Uninstall behavior
 
-The **When moved to Trash** setting has two choices. **Preserve History and Settings** is the default: moving `/Applications/Veloop.app` to Trash removes permissions, LaunchAgents, the Palette, runtime files, and the uninstall watcher while retaining clipboard history and settings. **Remove Everything** also deletes all Veloop history, settings, preferences, caches, saved state, and WebKit data.
+The **When moved to Trash** setting has two choices. **Preserve History and Settings** is the default: after the control window is closed, moving `/Applications/Veloop.app` to Trash removes permissions, LaunchAgents, the external Agent runtime copy, the Palette, other runtime files, and the uninstall watcher while retaining clipboard history and settings. **Remove Everything** also deletes all Veloop history, settings, preferences, caches, saved state, and WebKit data.
 
 `brew uninstall --cask veloop` always performs a complete purge, regardless of the Trash setting. `brew uninstall --zap --cask veloop` has the same empty final state. The equivalent direct command is `veloopctl uninstall --purge`.
 

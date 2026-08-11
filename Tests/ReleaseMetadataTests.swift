@@ -48,6 +48,8 @@ final class ReleaseMetadataTests: XCTestCase {
             "If the returned state is still missing either permission",
             "reads the fresh permission state immediately",
             "changes made directly in System Settings",
+            "AgentRuntime/Veloop",
+            "can be moved directly to Trash",
             "Preserve History and Settings",
             "Remove Everything",
             "always performs a complete purge",
@@ -75,6 +77,8 @@ final class ReleaseMetadataTests: XCTestCase {
             "如果返回状态仍缺少任一权限",
             "立即读取新的权限状态",
             "直接在“系统设置”中进行的修改",
+            "AgentRuntime/Veloop",
+            "直接移到废纸篓",
             "保留历史记录和设置",
             "移除所有内容",
             "始终执行彻底清理",
@@ -88,7 +92,7 @@ final class ReleaseMetadataTests: XCTestCase {
         let sourceGuide = try text("Sources/README.md")
 
         XCTAssertTrue(sourceGuide.contains(
-            "The same `Veloop` executable runs in `--agent` mode"
+            "The same signed `Veloop` executable runs in `--agent` mode"
         ))
         XCTAssertTrue(sourceGuide.contains("one bounded state request before recovery"))
         XCTAssertTrue(sourceGuide.contains("force-restarts only the Agent once"))

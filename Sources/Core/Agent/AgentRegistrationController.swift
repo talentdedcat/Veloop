@@ -14,7 +14,8 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     private let fileManager: FileManager
     private let launchAgentURL: URL
     private let applicationBundleURL: URL
-    private let agentExecutableURL: URL
+    private let applicationExecutableURL: URL
+    private let agentRuntimeExecutableURL: URL
     private let currentBuild: String
     private let unregisterLegacyService: UnregisterLegacyService
     private let launchctl: Launchctl
@@ -42,6 +43,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             fileManager: .default,
             launchAgentURL: nil,
             applicationBundleURL: nil,
+            agentRuntimeExecutableURL: nil,
             currentBuild: nil,
             unregisterLegacyService: {
                 try AgentRegistrationController.unregisterLegacyLoginItem()
@@ -69,6 +71,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         fileManager: FileManager = .default,
         launchAgentURL: URL? = nil,
         applicationBundleURL: URL? = nil,
+        agentRuntimeExecutableURL: URL? = nil,
         currentBuild: String? = nil,
         unregisterLegacyService: @escaping UnregisterLegacyService,
         launchctl: @escaping Launchctl,
@@ -82,7 +85,11 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         self.launchAgentURL = launchAgentURL ?? fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/com.veloop.service.plist")
         self.applicationBundleURL = appBundle
-        agentExecutableURL = appBundle.appendingPathComponent("Contents/MacOS/Veloop")
+        applicationExecutableURL = appBundle.appendingPathComponent("Contents/MacOS/Veloop")
+        self.agentRuntimeExecutableURL = agentRuntimeExecutableURL
+            ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(
+                "Library/Application Support/Veloop/AgentRuntime/Veloop"
+            )
         self.currentBuild = currentBuild
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
             ?? "unknown"
@@ -164,8 +171,12 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             try validateApplicationIdentity()
             try migrateLegacyLoginItemIfNeeded()
             if enabled {
-                _ = try installLaunchAgent()
-                try requireSuccess(["kickstart", serviceTarget])
+                let requiresForcedKickstart = try installLaunchAgent()
+                try requireSuccess(
+                    requiresForcedKickstart
+                        ? ["kickstart", "-k", serviceTarget]
+                        : ["kickstart", serviceTarget]
+                )
                 try requireSuccess(["print", serviceTarget])
             } else {
                 try removeLaunchAgentFile()
@@ -189,7 +200,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     }
 
     private func validateApplicationIdentity() throws {
-        guard fileManager.fileExists(atPath: agentExecutableURL.path) else {
+        guard fileManager.fileExists(atPath: applicationExecutableURL.path) else {
             throw AgentRegistrationError.invalidApplication
         }
         let infoURL = applicationBundleURL.appendingPathComponent("Contents/Info.plist")
@@ -203,6 +214,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     }
 
     private func installLaunchAgent() throws -> Bool {
+        _ = try installAgentRuntimeExecutable()
         let data = try launchAgentData()
         var loaded = isLoaded
         if (try? Data(contentsOf: launchAgentURL)) != data {
@@ -222,6 +234,22 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         return loaded
     }
 
+    @discardableResult
+    private func installAgentRuntimeExecutable() throws -> Bool {
+        let sourceData = try Data(contentsOf: applicationExecutableURL)
+        let existingData = try? Data(contentsOf: agentRuntimeExecutableURL)
+        guard existingData != sourceData
+                || !fileManager.isExecutableFile(atPath: agentRuntimeExecutableURL.path) else {
+            return false
+        }
+        try AtomicFileWriter.replace(
+            sourceData,
+            at: agentRuntimeExecutableURL,
+            permissions: 0o755
+        )
+        return true
+    }
+
     private var domainTarget: String { "gui/\(getuid())" }
 
     private var serviceTarget: String {
@@ -239,7 +267,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
                 "AssociatedBundleIdentifiers": [AppConstants.bundleIdentifier],
                 "EnvironmentVariables": ["VELOOP_BUILD_VERSION": currentBuild],
                 "KeepAlive": ["SuccessfulExit": false],
-                "ProgramArguments": [agentExecutableURL.path, "--agent"],
+                "ProgramArguments": [agentRuntimeExecutableURL.path, "--agent"],
                 "RunAtLoad": true,
                 "ProcessType": "Interactive",
             ],

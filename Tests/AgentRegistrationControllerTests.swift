@@ -3,7 +3,7 @@ import XCTest
 @testable import VeloopCore
 
 final class AgentRegistrationControllerTests: XCTestCase {
-    func testFreshRegistrationUsesOnlyCanonicalMainExecutableAndAgentMode() throws {
+    func testFreshRegistrationCopiesCanonicalExecutableOutsideBundleAndUsesAgentMode() throws {
         let harness = try RegistrationHarness(statuses: [1, 0, 0, 0])
 
         try harness.controller.ensureRegisteredAndRunning()
@@ -12,9 +12,16 @@ final class AgentRegistrationControllerTests: XCTestCase {
         XCTAssertEqual(plist["Label"] as? String, "com.veloop.service")
         XCTAssertEqual(plist["AssociatedBundleIdentifiers"] as? [String], ["com.veloop.app"])
         XCTAssertEqual(plist["ProgramArguments"] as? [String], [
-            harness.executableURL.path,
+            harness.agentRuntimeExecutableURL.path,
             "--agent",
         ])
+        XCTAssertEqual(
+            try Data(contentsOf: harness.agentRuntimeExecutableURL),
+            try Data(contentsOf: harness.executableURL)
+        )
+        XCTAssertTrue(FileManager.default.isExecutableFile(
+            atPath: harness.agentRuntimeExecutableURL.path
+        ))
         XCTAssertEqual(harness.launchctl.calls, [
             ["print", harness.serviceTarget],
             ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
@@ -91,6 +98,7 @@ private final class RegistrationHarness {
     let applicationsDirectory: URL
     let appBundleURL: URL
     let executableURL: URL
+    let agentRuntimeExecutableURL: URL
     let launchAgentURL: URL
     let suiteName: String
     let defaults: UserDefaults
@@ -110,6 +118,9 @@ private final class RegistrationHarness {
         applicationsDirectory = root.appendingPathComponent("Applications", isDirectory: true)
         appBundleURL = applicationsDirectory.appendingPathComponent("Veloop.app", isDirectory: true)
         executableURL = appBundleURL.appendingPathComponent("Contents/MacOS/Veloop")
+        agentRuntimeExecutableURL = root.appendingPathComponent(
+            "home/Library/Application Support/Veloop/AgentRuntime/Veloop"
+        )
         launchAgentURL = root.appendingPathComponent(
             "home/Library/LaunchAgents/com.veloop.service.plist"
         )
@@ -142,6 +153,7 @@ private final class RegistrationHarness {
             defaults: defaults,
             launchAgentURL: launchAgentURL,
             applicationBundleURL: appBundleURL,
+            agentRuntimeExecutableURL: agentRuntimeExecutableURL,
             currentBuild: "test-build",
             unregisterLegacyService: { legacyMigration.increment() },
             launchctl: { arguments in try launchctl.run(arguments) }
