@@ -22,6 +22,9 @@ final class AgentRegistrationControllerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.isExecutableFile(
             atPath: harness.agentRuntimeExecutableURL.path
         ))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: harness.agentRuntimeBundleURL.appendingPathComponent("Contents/Info.plist").path
+        ))
         XCTAssertEqual(harness.launchctl.calls, [
             ["print", harness.serviceTarget],
             ["bootstrap", harness.domainTarget, harness.launchAgentURL.path],
@@ -98,6 +101,7 @@ private final class RegistrationHarness {
     let applicationsDirectory: URL
     let appBundleURL: URL
     let executableURL: URL
+    let agentRuntimeBundleURL: URL
     let agentRuntimeExecutableURL: URL
     let launchAgentURL: URL
     let suiteName: String
@@ -118,8 +122,12 @@ private final class RegistrationHarness {
         applicationsDirectory = root.appendingPathComponent("Applications", isDirectory: true)
         appBundleURL = applicationsDirectory.appendingPathComponent("Veloop.app", isDirectory: true)
         executableURL = appBundleURL.appendingPathComponent("Contents/MacOS/Veloop")
-        agentRuntimeExecutableURL = root.appendingPathComponent(
-            "home/Library/Application Support/Veloop/AgentRuntime/Veloop"
+        agentRuntimeBundleURL = root.appendingPathComponent(
+            "home/Library/Application Support/Veloop/AgentRuntime/Veloop",
+            isDirectory: true
+        )
+        agentRuntimeExecutableURL = agentRuntimeBundleURL.appendingPathComponent(
+            "Contents/MacOS/Veloop"
         )
         launchAgentURL = root.appendingPathComponent(
             "home/Library/LaunchAgents/com.veloop.service.plist"
@@ -153,7 +161,7 @@ private final class RegistrationHarness {
             defaults: defaults,
             launchAgentURL: launchAgentURL,
             applicationBundleURL: appBundleURL,
-            agentRuntimeExecutableURL: agentRuntimeExecutableURL,
+            agentRuntimeBundleURL: agentRuntimeBundleURL,
             currentBuild: "test-build",
             unregisterLegacyService: { legacyMigration.increment() },
             launchctl: { arguments in try launchctl.run(arguments) }

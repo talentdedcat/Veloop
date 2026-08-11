@@ -12,6 +12,7 @@ public struct VeloopCleanupPaths: Sendable {
     public let permissionIdentityReceipt: URL
     public let paletteHostMarker: URL
     public let agentRuntimeDirectory: URL
+    public let agentRuntimeBundle: URL
     public let agentRuntimeExecutable: URL
     public let watcherDirectory: URL
     public let watcherExecutable: URL
@@ -49,7 +50,13 @@ public struct VeloopCleanupPaths: Sendable {
             "AgentRuntime",
             isDirectory: true
         )
-        agentRuntimeExecutable = agentRuntimeDirectory.appendingPathComponent("Veloop")
+        agentRuntimeBundle = agentRuntimeDirectory.appendingPathComponent(
+            "Veloop",
+            isDirectory: true
+        )
+        agentRuntimeExecutable = agentRuntimeBundle.appendingPathComponent(
+            "Contents/MacOS/Veloop"
+        )
         watcherDirectory = applicationSupport.appendingPathComponent(
             "UninstallWatcher",
             isDirectory: true
@@ -119,6 +126,7 @@ public struct VeloopCleanupPaths: Sendable {
             permissionIdentityReceipt,
             paletteHostMarker,
             agentRuntimeExecutable,
+            agentRuntimeBundle,
             agentRuntimeDirectory,
             agentLaunchAgent,
             paletteBundle,

@@ -15,6 +15,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     private let launchAgentURL: URL
     private let applicationBundleURL: URL
     private let applicationExecutableURL: URL
+    private let agentRuntimeBundleURL: URL
     private let agentRuntimeExecutableURL: URL
     private let currentBuild: String
     private let unregisterLegacyService: UnregisterLegacyService
@@ -43,7 +44,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             fileManager: .default,
             launchAgentURL: nil,
             applicationBundleURL: nil,
-            agentRuntimeExecutableURL: nil,
+            agentRuntimeBundleURL: nil,
             currentBuild: nil,
             unregisterLegacyService: {
                 try AgentRegistrationController.unregisterLegacyLoginItem()
@@ -71,7 +72,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         fileManager: FileManager = .default,
         launchAgentURL: URL? = nil,
         applicationBundleURL: URL? = nil,
-        agentRuntimeExecutableURL: URL? = nil,
+        agentRuntimeBundleURL: URL? = nil,
         currentBuild: String? = nil,
         unregisterLegacyService: @escaping UnregisterLegacyService,
         launchctl: @escaping Launchctl,
@@ -86,10 +87,14 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
             .appendingPathComponent("Library/LaunchAgents/com.veloop.service.plist")
         self.applicationBundleURL = appBundle
         applicationExecutableURL = appBundle.appendingPathComponent("Contents/MacOS/Veloop")
-        self.agentRuntimeExecutableURL = agentRuntimeExecutableURL
+        self.agentRuntimeBundleURL = agentRuntimeBundleURL
             ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(
-                "Library/Application Support/Veloop/AgentRuntime/Veloop"
+                "Library/Application Support/Veloop/AgentRuntime/Veloop",
+                isDirectory: true
             )
+        agentRuntimeExecutableURL = self.agentRuntimeBundleURL.appendingPathComponent(
+            "Contents/MacOS/Veloop"
+        )
         self.currentBuild = currentBuild
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
             ?? "unknown"
@@ -214,7 +219,7 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     }
 
     private func installLaunchAgent() throws -> Bool {
-        _ = try installAgentRuntimeExecutable()
+        _ = try installAgentRuntimeBundle()
         let data = try launchAgentData()
         var loaded = isLoaded
         if (try? Data(contentsOf: launchAgentURL)) != data {
@@ -235,18 +240,40 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
     }
 
     @discardableResult
-    private func installAgentRuntimeExecutable() throws -> Bool {
+    private func installAgentRuntimeBundle() throws -> Bool {
         let sourceData = try Data(contentsOf: applicationExecutableURL)
         let existingData = try? Data(contentsOf: agentRuntimeExecutableURL)
         guard existingData != sourceData
                 || !fileManager.isExecutableFile(atPath: agentRuntimeExecutableURL.path) else {
             return false
         }
-        try AtomicFileWriter.replace(
-            sourceData,
-            at: agentRuntimeExecutableURL,
-            permissions: 0o755
-        )
+
+        let parent = agentRuntimeBundleURL.deletingLastPathComponent()
+        let temporary = parent.appendingPathComponent(".tmp-(UUID().uuidString)")
+        let backup = parent.appendingPathComponent(".old-(UUID().uuidString)")
+        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+        do {
+            try fileManager.copyItem(at: applicationBundleURL, to: temporary)
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: temporary.appendingPathComponent("Contents/MacOS/Veloop").path
+            )
+            if fileManager.fileExists(atPath: agentRuntimeBundleURL.path) {
+                try fileManager.moveItem(at: agentRuntimeBundleURL, to: backup)
+            }
+            do {
+                try fileManager.moveItem(at: temporary, to: agentRuntimeBundleURL)
+            } catch {
+                if fileManager.fileExists(atPath: backup.path) {
+                    try? fileManager.moveItem(at: backup, to: agentRuntimeBundleURL)
+                }
+                throw error
+            }
+            try? fileManager.removeItem(at: backup)
+        } catch {
+            try? fileManager.removeItem(at: temporary)
+            throw error
+        }
         return true
     }
 

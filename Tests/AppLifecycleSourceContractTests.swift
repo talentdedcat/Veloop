@@ -192,7 +192,7 @@ final class AppLifecycleSourceContractTests: XCTestCase {
             "Library/Application Support/Veloop/AgentRuntime/Veloop"
         ))
         XCTAssertTrue(registration.contains("[agentRuntimeExecutableURL.path, \"--agent\"]"))
-        XCTAssertTrue(registration.contains("AtomicFileWriter.replace"))
+        XCTAssertTrue(registration.contains("copyItem(at: applicationBundleURL"))
         XCTAssertFalse(registration.contains("Contents/Library/LoginItems"))
         XCTAssertFalse(registration.contains("Veloop Agent.app"))
         XCTAssertFalse(registration.contains("ensurePersistentAgentInstalled"))

@@ -95,7 +95,7 @@ brew install --cask Veloop
 
 权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。普通启动不会请求权限。仅在相应权限缺失时使用权限按钮。
 
-Veloop.app 是唯一承载权限的 Veloop 应用。不会再安装独立的 Veloop Agent.app。请在两个隐私权限页面中添加或启用 `/Applications/Veloop.app`。后台运行时，Veloop 会把这个已签名可执行文件原子复制到 `~/Library/Application Support/Veloop/AgentRuntime/Veloop`，并以 `--agent` 模式运行该副本。二进制内容、代码哈希、应用身份和显示名称完全相同，同时 `/Applications/Veloop.app` 不再被占用；关闭控制窗口后即可直接移到废纸篓。
+Veloop.app 是唯一承载权限的 Veloop 应用。不会再安装独立的 Veloop Agent.app。请在两个隐私权限页面中添加或启用 `/Applications/Veloop.app`。后台运行时，Veloop 会把完整的已签名包内容复制到没有 `.app` 后缀的运行目录 `~/Library/Application Support/Veloop/AgentRuntime/Veloop`，并以 `--agent` 模式运行其中的 `Contents/MacOS/Veloop`。可执行文件内容、代码哈希、应用身份和显示名称完全相同，同时 `/Applications/Veloop.app` 不再被占用；关闭控制窗口后即可直接移到废纸篓。
 
 ad-hoc 二进制发生变化时，代码哈希也会变化，macOS 无法把旧授权安全地转移给新二进制。Veloop 检测到已安装可执行文件发生变化时，会在启动新 Agent 前清除旧的 Veloop 权限记录。ad-hoc 二进制更新后重新启用一次这两项权限，即可消除“旧 Veloop 条目显示已开启、当前二进制却被拒绝”的错误状态。
 
