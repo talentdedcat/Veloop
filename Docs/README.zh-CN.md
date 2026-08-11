@@ -202,7 +202,7 @@ Tests/                   行为与打包契约
 Configuration/           应用与 Palette 的 bundle 元数据
 Packaging/               发布构建、DMG 创建与验证脚本
 Casks/                   Homebrew Cask 定义
-Docs/                    本地化 README、产品媒体、规格与计划
+Docs/                    本地化 README 与产品媒体
 ```
 
 模块职责、运行流程和架构约束请参阅[源码导览](../Sources/README.md)。

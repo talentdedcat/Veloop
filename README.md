@@ -202,7 +202,7 @@ Tests/                   behavioral and packaging contracts
 Configuration/           application and Palette bundle metadata
 Packaging/               release build, DMG creation, and verification scripts
 Casks/                   Homebrew Cask definition
-Docs/                    localized README, product media, specs, and plans
+Docs/                    localized README and product media
 ```
 
 See the [source guide](Sources/README.md) for module ownership, runtime flow, and architectural invariants.
