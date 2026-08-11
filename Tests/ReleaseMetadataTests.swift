@@ -30,7 +30,7 @@ final class ReleaseMetadataTests: XCTestCase {
         )
     }
 
-    func testEnglishReadmeDocumentsReleaseAndPermissionRecovery() throws {
+    func testEnglishReadmeDocumentsPublicReleaseContract() throws {
         let readme = try text("README.md")
 
         for requiredText in [
@@ -38,45 +38,26 @@ final class ReleaseMetadataTests: XCTestCase {
             "Veloop-0.2.0-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
-            #"<table align="center">"#,
-            "Veloop uses one permission identity and one display name",
-            "No separate Veloop Agent.app is installed.",
-            "show the Veloop logo in privacy lists",
-            "old extensionless `AgentRuntime/Veloop` path",
-            "path-based duplicate is not created again",
-            "a changed ad-hoc binary has a new code hash",
-            "clears stale Veloop permission records",
-            "Re-enable Accessibility once after an ad-hoc binary update",
-            "queries the healthy Agent first without restarting it",
-            "Returning from System Settings force-restarts only the Agent before reading permission state",
-            "never re-enables an Event Tap disabled by user input",
-            "reports both directions accurately",
-            "AgentRuntime/Veloop.app",
-            "can be moved directly to Trash",
-            "removes current and legacy Veloop permission records",
-            "byte-for-byte preservation of `config.json` and `history.json`",
+            "Accessibility is the only permission users need to enable",
+            "No separate Input Monitoring setup is required",
+            "Veloop does not trigger the macOS permission prompt",
+            "current focused Accessibility element",
+            "`Veloop.app` and its background process share one permission identity",
             "Preserve History and Settings",
             "Remove Everything",
-            "always performs a complete purge",
-            "Veloop never invokes the macOS permission prompt",
-            "only opens the Accessibility pane in System Settings",
-            "Accessibility is the only permission users need to enable",
-            "verifies listening, posting, and Accessibility access separately",
-            "queries the Palette first",
-            "never asks macOS to enable the Palette input source",
-            "focused Accessibility element",
-            "does not traverse the Accessibility tree",
-            "already-running applications do not need to reconnect to the Palette",
-            "native text editors, chat input fields, code editors, browser address fields, and editable web content",
+            "brew uninstall --cask veloop",
+            "veloopctl uninstall --purge",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
-        XCTAssertFalse(readme.contains("reproducible public build"))
         XCTAssertFalse(readme.contains("<strong>Input Monitoring</strong>"))
         XCTAssertFalse(readme.contains("Re-enable both permissions"))
+        XCTAssertFalse(readme.contains("browser address fields"))
+        XCTAssertFalse(readme.contains("veloopctl help"))
+        XCTAssertFalse(readme.contains("Veloop Agent.app"))
     }
 
-    func testChineseReadmeDocumentsReleaseAndPermissionRecovery() throws {
+    func testChineseReadmeDocumentsPublicReleaseContract() throws {
         let readme = try text("Docs/README.zh-CN.md")
 
         for requiredText in [
@@ -84,42 +65,23 @@ final class ReleaseMetadataTests: XCTestCase {
             "Veloop-0.2.0-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
-            #"<table align="center">"#,
-            "Veloop 只使用一个权限身份和一个显示名称",
-            "不会安装独立的 Veloop Agent.app。",
-            "显示 Veloop Logo",
-            "旧的无后缀 `AgentRuntime/Veloop` 路径",
-            "不会再产生这种路径型重复项",
-            "ad-hoc 二进制发生变化时，代码哈希也会变化",
-            "清除旧的 Veloop 权限记录",
-            "ad-hoc 二进制更新后重新启用一次“辅助功能”",
-            "优先查询健康的 Agent，不会先重启",
-            "从“系统设置”返回 Veloop 时，会先仅重启 Agent",
-            "绝不会重新启用因用户输入而被禁用的 Event Tap",
-            "准确识别两个方向的变化",
-            "AgentRuntime/Veloop.app",
-            "直接移到废纸篓",
-            "移除当前和旧版 Veloop 权限记录",
-            "`config.json` 与 `history.json` 的内容哈希",
+            "用户只需开启“辅助功能”",
+            "不需要单独开启“输入监控”",
+            "Veloop 不会主动触发 macOS 权限弹窗",
+            "当前聚焦的 Accessibility 元素",
+            "`Veloop.app` 与它的后台进程共享唯一的权限身份",
             "保留历史记录和设置",
             "移除所有内容",
-            "始终执行彻底清理",
-            "Veloop 绝不会主动调用 macOS 权限弹窗",
-            "只会打开“系统设置”中的“辅助功能”页面",
-            "用户只需开启“辅助功能”",
-            "分别检查监听、事件发送和 Accessibility 访问能力",
-            "首先查询 Palette",
-            "绝不会请求 macOS 启用 Palette 输入源",
-            "当前聚焦的 Accessibility 元素",
-            "不会遍历 Accessibility 树",
-            "已经运行的应用不需要重新连接 Palette",
-            "原生文本编辑器、聊天输入框、代码编辑器、浏览器地址栏和网页可编辑区域",
+            "brew uninstall --cask veloop",
+            "veloopctl uninstall --purge",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
-        XCTAssertFalse(readme.contains("可复现的公开构建"))
         XCTAssertFalse(readme.contains("<strong>输入监控</strong>"))
         XCTAssertFalse(readme.contains("重新启用一次这两项权限"))
+        XCTAssertFalse(readme.contains("浏览器地址栏"))
+        XCTAssertFalse(readme.contains("veloopctl help"))
+        XCTAssertFalse(readme.contains("Veloop Agent.app"))
     }
 
     func testSourceGuideDescribesSingleIdentityAndImmediateRefresh() throws {

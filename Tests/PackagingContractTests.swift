@@ -4,8 +4,6 @@ import XCTest
 final class PackagingContractTests: XCTestCase {
     func testLocalSwiftPackageDefinesEveryReleaseExecutableAndPackagingTests() throws {
         let package = try text("Package.swift")
-        let readme = try text("README.md")
-        let chineseReadme = try text("Docs/README.zh-CN.md")
         let sourceGuide = try text("Sources/README.md")
 
         XCTAssertTrue(package.contains(".executable(name: \"Veloop\", targets: [\"App\"])"))
@@ -26,28 +24,6 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(exists("Sources/Core/CommandLine/VeloopCLI.swift"))
         XCTAssertTrue(exists("Sources/Core/CommandLine/AgentClient.swift"))
         XCTAssertTrue(exists("Sources/Core/CommandLine/AgentServer.swift"))
-        for entry in [
-            "Sources/",
-            "  App/",
-            "  Core/",
-            "    Agent/",
-            "    CommandLine/",
-            "    Permissions/",
-            "    Uninstall/",
-            "  Palette/",
-            "  UninstallWatcher/",
-            "  Veloopctl/",
-            "Tests/",
-            "Configuration/",
-            "Packaging/",
-            "Casks/",
-            "Docs/",
-        ] {
-            XCTAssertTrue(readme.contains(entry), "English layout is missing \(entry)")
-            XCTAssertTrue(chineseReadme.contains(entry), "Chinese layout is missing \(entry)")
-        }
-        XCTAssertTrue(readme.contains("[source guide](Sources/README.md)"))
-        XCTAssertTrue(chineseReadme.contains("[源码导览](../Sources/README.md)"))
         XCTAssertTrue(sourceGuide.contains("`Veloopctl` is the thin `veloopctl` entry point"))
         XCTAssertFalse(sourceGuide.contains("`CommandLine` is the thin `veloopctl` entry point"))
     }
