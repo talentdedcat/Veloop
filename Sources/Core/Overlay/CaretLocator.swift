@@ -78,12 +78,14 @@ final class CaretLocator {
     static let shared = CaretLocator()
 
     private let query: PaletteCaretQuerying
+    private let accessibilityQuery: AccessibilityCaretQuerying
     private let targetProvider: () -> CaretTarget?
     private let screensProvider: () -> [PaletteScreenGeometry]
     private let diagnosticState = CaretDiagnosticState()
 
     init(
         query: PaletteCaretQuerying = PaletteCaretClient(),
+        accessibilityQuery: AccessibilityCaretQuerying = FocusedAccessibilityCaretClient(),
         targetProvider: @escaping () -> CaretTarget? = {
             guard let application = NSWorkspace.shared.frontmostApplication,
                   let bundleIdentifier = application.bundleIdentifier else {
@@ -109,6 +111,7 @@ final class CaretLocator {
         }
     ) {
         self.query = query
+        self.accessibilityQuery = accessibilityQuery
         self.targetProvider = targetProvider
         self.screensProvider = screensProvider
     }
@@ -118,52 +121,77 @@ final class CaretLocator {
             diagnosticState.record(status: "no-frontmost-target", processIdentifier: nil, location: nil)
             return nil
         }
-        guard let response = query.query(target: target) else {
-            diagnosticState.record(
-                status: "palette-unavailable",
-                processIdentifier: target.processIdentifier,
-                location: nil
-            )
-            return nil
-        }
-        guard response.processIdentifier == target.processIdentifier else {
-            diagnosticState.record(
-                status: "palette-response-mismatch",
-                processIdentifier: target.processIdentifier,
-                location: nil
-            )
-            return nil
-        }
-        guard let globalRect = PaletteCaretGeometry.cgCaretRect(
+        let screens = screensProvider()
+        if let response = query.query(target: target),
+           response.processIdentifier == target.processIdentifier,
+           let globalRect = PaletteCaretGeometry.cgCaretRect(
             fromAppKit: response.appKitRect,
-            screens: screensProvider()
-        ) else {
-            diagnosticState.record(
-                status: "invalid-palette-geometry",
-                processIdentifier: target.processIdentifier,
-                location: nil
+            screens: screens
+           ) {
+            return publishLocation(
+                globalRect: globalRect,
+                target: target,
+                source: response.source,
+                confidence: response.source == .paletteLineRectangle ? 1 : 0.95,
+                status: "located-palette"
             )
-            return nil
         }
 
+        switch accessibilityQuery.query(target: target) {
+        case let .failed(failure):
+            diagnosticState.record(
+                status: failure.rawValue,
+                processIdentifier: target.processIdentifier,
+                location: nil
+            )
+            return nil
+        case let .located(bounds):
+            guard let globalRect = GlobalCaretGeometry.validated(
+                bounds,
+                displayBounds: screens.map(\.cgDisplayBounds)
+            ) else {
+                diagnosticState.record(
+                    status: "invalid-accessibility-geometry",
+                    processIdentifier: target.processIdentifier,
+                    location: nil
+                )
+                return nil
+            }
+            return publishLocation(
+                globalRect: globalRect,
+                target: target,
+                source: .accessibilityFocusedElement,
+                confidence: 0.9,
+                status: "located-accessibility"
+            )
+        }
+    }
+
+    func diagnosticReport() -> CaretDiagnosticReport {
+        diagnosticState.report()
+    }
+
+    private func publishLocation(
+        globalRect: CGRect,
+        target: CaretTarget,
+        source: CaretSource,
+        confidence: Double,
+        status: String
+    ) -> CaretLocation {
         let location = CaretLocation(
             globalRect: globalRect,
             anchorPoint: CGPoint(x: globalRect.maxX, y: globalRect.maxY),
             processIdentifier: target.processIdentifier,
             applicationBundleIdentifier: target.bundleIdentifier,
-            source: response.source,
-            confidence: response.source == .paletteLineRectangle ? 1 : 0.95,
+            source: source,
+            confidence: confidence,
             isStale: false
         )
         diagnosticState.record(
-            status: "located",
+            status: status,
             processIdentifier: target.processIdentifier,
             location: location
         )
         return location
-    }
-
-    func diagnosticReport() -> CaretDiagnosticReport {
-        diagnosticState.report()
     }
 }

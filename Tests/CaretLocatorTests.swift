@@ -10,8 +10,12 @@ final class CaretLocatorTests: XCTestCase {
             processIdentifier: 42
         )
         let query = PaletteQueryStub(response: response)
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 700, y: 400, width: 1, height: 18)
+        ))
         let locator = CaretLocator(
             query: query,
+            accessibilityQuery: accessibility,
             targetProvider: {
                 CaretTarget(processIdentifier: 42, bundleIdentifier: "com.example.editor")
             },
@@ -36,6 +40,7 @@ final class CaretLocatorTests: XCTestCase {
             processIdentifier: 42,
             bundleIdentifier: "com.example.editor"
         )])
+        XCTAssertTrue(accessibility.requests.isEmpty)
     }
 
     func testEachRequestQueriesTheCurrentTargetExactlyOnce() {
@@ -66,10 +71,12 @@ final class CaretLocatorTests: XCTestCase {
         ])
     }
 
-    func testMissingPaletteResponseReturnsNilWithoutFallback() {
+    func testMissingPaletteResponseUsesAccessibilityFailureStatus() {
         let query = PaletteQueryStub(response: nil)
+        let accessibility = AccessibilityQueryStub(result: .failed(.missingFocusedElement))
         let locator = CaretLocator(
             query: query,
+            accessibilityQuery: accessibility,
             targetProvider: {
                 CaretTarget(processIdentifier: 7, bundleIdentifier: "com.example.unsupported")
             },
@@ -77,8 +84,12 @@ final class CaretLocatorTests: XCTestCase {
         )
 
         XCTAssertNil(locator.currentCaretLocation())
-        XCTAssertEqual(locator.diagnosticReport().status, "palette-unavailable")
+        XCTAssertEqual(
+            locator.diagnosticReport().status,
+            AccessibilityCaretFailure.missingFocusedElement.rawValue
+        )
         XCTAssertEqual(query.requests.count, 1)
+        XCTAssertEqual(accessibility.requests.count, 1)
     }
 
     func testMissingFrontmostBundleDoesNotQueryPalette() {
@@ -160,20 +171,123 @@ final class CaretLocatorTests: XCTestCase {
         XCTAssertEqual(location.confidence, 0.95)
     }
 
-    func testResponseForDifferentProcessIsRejected() {
+    func testResponseForDifferentProcessFallsBackToAccessibility() throws {
         let query = PaletteQueryStub(response: PaletteCaretResponse(
             appKitRect: CGRect(x: 100, y: 100, width: 1, height: 16),
             source: .paletteLineRectangle,
             processIdentifier: 99
         ))
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 700, y: 400, width: 1, height: 18)
+        ))
         let locator = CaretLocator(
             query: query,
+            accessibilityQuery: accessibility,
             targetProvider: { CaretTarget(processIdentifier: 8, bundleIdentifier: "editor") },
             screensProvider: { [Self.screen] }
         )
 
+        let location = try XCTUnwrap(locator.currentCaretLocation())
+        XCTAssertEqual(location.source, .accessibilityFocusedElement)
+        XCTAssertEqual(accessibility.requests.count, 1)
+        XCTAssertEqual(locator.diagnosticReport().status, "located-accessibility")
+    }
+
+    func testMissingPaletteUsesFocusedAccessibilityCaret() throws {
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 700, y: 400, width: 1, height: 18)
+        ))
+        let locator = CaretLocator(
+            query: PaletteQueryStub(response: nil),
+            accessibilityQuery: accessibility,
+            targetProvider: {
+                CaretTarget(processIdentifier: 7, bundleIdentifier: "com.example.editor")
+            },
+            screensProvider: { [Self.screen] }
+        )
+
+        let location = try XCTUnwrap(locator.currentCaretLocation())
+
+        XCTAssertEqual(location.globalRect, CGRect(x: 700, y: 400, width: 1, height: 18))
+        XCTAssertEqual(location.anchorPoint, CGPoint(x: 701, y: 418))
+        XCTAssertEqual(location.processIdentifier, 7)
+        XCTAssertEqual(location.applicationBundleIdentifier, "com.example.editor")
+        XCTAssertEqual(location.source, .accessibilityFocusedElement)
+        XCTAssertEqual(location.confidence, 0.9)
+        XCTAssertFalse(location.isStale)
+        XCTAssertEqual(accessibility.requests, [CaretTarget(
+            processIdentifier: 7,
+            bundleIdentifier: "com.example.editor"
+        )])
+        XCTAssertEqual(locator.diagnosticReport().status, "located-accessibility")
+    }
+
+    func testInvalidPaletteGeometryFallsBackToAccessibility() throws {
+        let query = PaletteQueryStub(response: PaletteCaretResponse(
+            appKitRect: CGRect(x: 5_000, y: 5_000, width: 1, height: 16),
+            source: .paletteLineRectangle,
+            processIdentifier: 7
+        ))
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 700, y: 400, width: 1, height: 18)
+        ))
+        let locator = CaretLocator(
+            query: query,
+            accessibilityQuery: accessibility,
+            targetProvider: {
+                CaretTarget(processIdentifier: 7, bundleIdentifier: "com.example.editor")
+            },
+            screensProvider: { [Self.screen] }
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(locator.currentCaretLocation()).source,
+            .accessibilityFocusedElement
+        )
+        XCTAssertEqual(accessibility.requests.count, 1)
+    }
+
+    func testInvalidAccessibilityGeometryReturnsNil() {
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 9_000, y: 9_000, width: 1, height: 18)
+        ))
+        let locator = CaretLocator(
+            query: PaletteQueryStub(response: nil),
+            accessibilityQuery: accessibility,
+            targetProvider: {
+                CaretTarget(processIdentifier: 7, bundleIdentifier: "com.example.editor")
+            },
+            screensProvider: { [Self.screen] }
+        )
+
         XCTAssertNil(locator.currentCaretLocation())
-        XCTAssertEqual(locator.diagnosticReport().status, "palette-response-mismatch")
+        XCTAssertEqual(
+            locator.diagnosticReport().status,
+            "invalid-accessibility-geometry"
+        )
+    }
+
+    func testAccessibilityFailuresBecomeExactDiagnosticStatuses() {
+        for failure in [
+            AccessibilityCaretFailure.untrusted,
+            .missingFocusedElement,
+            .processMismatch,
+            .missingSelection,
+            .selectionNotCollapsed,
+            .missingBounds,
+        ] {
+            let locator = CaretLocator(
+                query: PaletteQueryStub(response: nil),
+                accessibilityQuery: AccessibilityQueryStub(result: .failed(failure)),
+                targetProvider: {
+                    CaretTarget(processIdentifier: 7, bundleIdentifier: "com.example.editor")
+                },
+                screensProvider: { [Self.screen] }
+            )
+
+            XCTAssertNil(locator.currentCaretLocation())
+            XCTAssertEqual(locator.diagnosticReport().status, failure.rawValue)
+        }
     }
 
     private static let screen = PaletteScreenGeometry(
@@ -193,5 +307,19 @@ private final class PaletteQueryStub: PaletteCaretQuerying {
     func query(target: CaretTarget) -> PaletteCaretResponse? {
         requests.append(target)
         return response
+    }
+}
+
+private final class AccessibilityQueryStub: AccessibilityCaretQuerying {
+    var result: AccessibilityCaretQueryResult
+    private(set) var requests: [CaretTarget] = []
+
+    init(result: AccessibilityCaretQueryResult) {
+        self.result = result
+    }
+
+    func query(target: CaretTarget) -> AccessibilityCaretQueryResult {
+        requests.append(target)
+        return result
     }
 }

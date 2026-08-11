@@ -74,6 +74,37 @@ struct PaletteScreenGeometry: Equatable, Sendable {
     let cgDisplayBounds: CGRect
 }
 
+enum GlobalCaretGeometry {
+    private static let maximumCaretWidth: CGFloat = 8
+    private static let minimumCaretHeight: CGFloat = 4
+    private static let maximumCaretHeight: CGFloat = 160
+
+    static func validated(_ rect: CGRect, displayBounds: [CGRect]) -> CGRect? {
+        guard rect.origin.x.isFinite,
+              rect.origin.y.isFinite,
+              rect.size.width.isFinite,
+              rect.size.height.isFinite,
+              rect.width >= 0,
+              rect.width <= maximumCaretWidth,
+              rect.height >= minimumCaretHeight,
+              rect.height <= maximumCaretHeight else {
+            return nil
+        }
+        let normalized = CGRect(
+            x: rect.minX,
+            y: rect.minY,
+            width: max(rect.width, 1),
+            height: rect.height
+        )
+        guard displayBounds.contains(where: {
+            $0.insetBy(dx: -1, dy: -1).intersects(normalized)
+        }) else {
+            return nil
+        }
+        return normalized
+    }
+}
+
 enum PaletteCaretGeometry {
     private static let maximumCaretWidth: CGFloat = 8
     private static let minimumCaretHeight: CGFloat = 4
@@ -108,12 +139,10 @@ enum PaletteCaretGeometry {
             width: normalizedWidth,
             height: rect.height
         )
-        guard converted.origin.x.isFinite,
-              converted.origin.y.isFinite,
-              screen.cgDisplayBounds.insetBy(dx: -1, dy: -1).intersects(converted) else {
-            return nil
-        }
-        return converted
+        return GlobalCaretGeometry.validated(
+            converted,
+            displayBounds: screens.map(\.cgDisplayBounds)
+        )
     }
 }
 
