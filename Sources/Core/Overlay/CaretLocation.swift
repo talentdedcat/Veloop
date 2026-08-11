@@ -4,6 +4,7 @@ import Foundation
 public enum CaretSource: String, Sendable, Equatable, CaseIterable {
     case paletteLineRectangle
     case paletteRangeRectangle
+    case accessibilityFocusedElement
 }
 
 public struct CaretLocation: Sendable, Equatable {
@@ -43,6 +44,29 @@ struct PaletteCaretResponse: Equatable, Sendable {
     let appKitRect: CGRect
     let source: CaretSource
     let processIdentifier: pid_t
+}
+
+enum AccessibilityCaretFailure: String, Equatable, Sendable {
+    case untrusted = "accessibility-untrusted"
+    case missingFocusedElement = "accessibility-no-focused-element"
+    case processMismatch = "accessibility-process-mismatch"
+    case missingSelection = "accessibility-no-selection"
+    case selectionNotCollapsed = "accessibility-selection-not-collapsed"
+    case missingBounds = "accessibility-no-bounds"
+}
+
+enum AccessibilityCaretQueryResult: Equatable, Sendable {
+    case located(CGRect)
+    case failed(AccessibilityCaretFailure)
+}
+
+enum FocusedAccessibilityReadResult {
+    case element(
+        processIdentifier: pid_t,
+        selectedRange: CFRange?,
+        boundsForRange: (CFRange) -> CGRect?
+    )
+    case missingFocusedElement
 }
 
 struct PaletteScreenGeometry: Equatable, Sendable {
