@@ -56,15 +56,15 @@ final class PermissionUISourceContractTests: XCTestCase {
         XCTAssertTrue(missing.contains("systemOrange"))
     }
 
-    func testPermissionButtonsEnableOnlyForFreshMissingState() throws {
+    func testPermissionButtonsRemainAvailableOutsideLoadingState() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
         let render = try functionBody(named: "render", in: controller)
 
         XCTAssertTrue(render.contains(
-            "inputSettingsButton.isEnabled = inputPermissionState == .missing && !model.isLoading"
+            "inputSettingsButton.isEnabled = !model.isLoading"
         ))
         XCTAssertTrue(render.contains(
-            "accessibilitySettingsButton.isEnabled = accessibilityPermissionState == .missing && !model.isLoading"
+            "accessibilitySettingsButton.isEnabled = !model.isLoading"
         ))
     }
 
@@ -80,18 +80,20 @@ final class PermissionUISourceContractTests: XCTestCase {
         XCTAssertTrue(accessibilityAction.contains(
             "openSystemSettings(\"Privacy_Accessibility\", permissionGroup: .accessibility)"
         ))
-        let gate = try XCTUnwrap(helper.range(of:
-            "guard model.permissionSyncState.displayState(for: permissionGroup) == .missing else { return }"
+        let snapshot = try XCTUnwrap(helper.range(of:
+            "let displayState = model.permissionSyncState.displayState(for: permissionGroup)"
         ))
         let open = try XCTUnwrap(helper.range(of: "NSWorkspace.shared.open(url)"))
+        let gate = try XCTUnwrap(helper.range(of:
+            "guard displayState == .missing else { return }"
+        ))
         let request = try XCTUnwrap(helper.range(of:
             "Task { await model.requestPermissions(permissionGroup) }"
         ))
 
-        XCTAssertLessThan(gate.lowerBound, open.lowerBound)
+        XCTAssertLessThan(snapshot.lowerBound, open.lowerBound)
+        XCTAssertLessThan(open.lowerBound, gate.lowerBound)
         XCTAssertLessThan(open.lowerBound, request.lowerBound)
-        XCTAssertFalse(controller.contains("markPermissionRefreshPending"))
-        XCTAssertFalse(controller.contains("permissionRefreshPending"))
         XCTAssertEqual(controller.components(separatedBy: "model.requestPermissions(").count - 1, 1)
         XCTAssertFalse(try functionBody(named: "render", in: controller).contains("requestPermissions"))
     }

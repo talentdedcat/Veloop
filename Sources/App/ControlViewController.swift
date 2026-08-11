@@ -310,8 +310,8 @@ final class ControlViewController: NSViewController {
         storageField.isEnabled = controlsEnabled
         storageStepper.isEnabled = controlsEnabled
         clearButton.isEnabled = controlsEnabled && (state?.historyCount ?? 0) > 0
-        inputSettingsButton.isEnabled = inputPermissionState == .missing && !model.isLoading
-        accessibilitySettingsButton.isEnabled = accessibilityPermissionState == .missing && !model.isLoading
+        inputSettingsButton.isEnabled = !model.isLoading
+        accessibilitySettingsButton.isEnabled = !model.isLoading
 
         let errorKey = localErrorKey ?? model.inlineError.map(errorKey(for:))
         errorLabel.stringValue = errorKey.map(localization.string) ?? ""
@@ -439,9 +439,10 @@ final class ControlViewController: NSViewController {
     }
 
     private func openSystemSettings(_ pane: String, permissionGroup: EventPermissionGroup) {
-        guard model.permissionSyncState.displayState(for: permissionGroup) == .missing else { return }
+        let displayState = model.permissionSyncState.displayState(for: permissionGroup)
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") else { return }
         NSWorkspace.shared.open(url)
+        guard displayState == .missing else { return }
         Task { await model.requestPermissions(permissionGroup) }
     }
 
