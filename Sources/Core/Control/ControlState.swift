@@ -50,4 +50,5 @@ public protocol AgentControlling: AnyObject, Sendable {
 
 public protocol AgentLifecycleControlling: AnyObject, Sendable {
     func ensureRegisteredAndRunning() throws
+    func restartForPermissionRefresh() throws
 }

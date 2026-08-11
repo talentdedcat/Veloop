@@ -45,14 +45,14 @@ final class ReleaseMetadataTests: XCTestCase {
             "clears stale Veloop permission records",
             "Re-enable both permissions once after an ad-hoc binary update",
             "queries the healthy Agent first without restarting it",
-            "reflected as soon as the control app becomes active",
+            "returning to Veloop deliberately restarts only the Agent once",
+            "reads the fresh permission state immediately",
             "Preserve History and Settings",
             "Remove Everything",
             "always performs a complete purge",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
-        XCTAssertFalse(readme.contains("After returning from System Settings"))
         XCTAssertFalse(readme.contains("reproducible public build"))
     }
 
@@ -71,14 +71,14 @@ final class ReleaseMetadataTests: XCTestCase {
             "清除旧的 Veloop 权限记录",
             "ad-hoc 二进制更新后重新启用一次这两项权限",
             "优先查询健康的 Agent，不会先重启",
-            "控制应用重新激活时立即反映",
+            "返回 Veloop 时只会主动重启一次 Agent",
+            "立即读取新的权限状态",
             "保留历史记录和设置",
             "移除所有内容",
             "始终执行彻底清理",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
-        XCTAssertFalse(readme.contains("从“系统设置”返回后"))
         XCTAssertFalse(readme.contains("可复现的公开构建"))
     }
 
@@ -89,6 +89,7 @@ final class ReleaseMetadataTests: XCTestCase {
             "The same `Veloop` executable runs in `--agent` mode"
         ))
         XCTAssertTrue(sourceGuide.contains("one bounded state request before recovery"))
+        XCTAssertTrue(sourceGuide.contains("force-restarts only the Agent once"))
         XCTAssertFalse(sourceGuide.contains("copies the signed embedded Agent"))
     }
 

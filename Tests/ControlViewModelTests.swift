@@ -597,6 +597,16 @@ private final class ScriptedLifecycle: AgentLifecycleControlling, @unchecked Sen
         try ensureHandler?()
     }
 
+    func restartForPermissionRefresh() throws {
+        calls.append("restart")
+        try lock.withLock {
+            mainThreadStorage.append(Thread.isMainThread)
+            guard !ensureResults.isEmpty else { throw TestError.registration }
+            try ensureResults.removeFirst().get()
+        }
+        try ensureHandler?()
+    }
+
 }
 
 private extension NSLock {

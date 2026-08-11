@@ -12,12 +12,14 @@ final class TCCPermissionResetterTests: XCTestCase {
 
         try resetter.resetVeloopPermissions()
 
-        XCTAssertEqual(recorder.executables, Array(repeating: "/usr/bin/tccutil", count: 4))
+        XCTAssertEqual(recorder.executables, Array(repeating: "/usr/bin/tccutil", count: 6))
         XCTAssertEqual(recorder.arguments, [
             ["reset", "ListenEvent", "com.veloop.app"],
             ["reset", "Accessibility", "com.veloop.app"],
+            ["reset", "PostEvent", "com.veloop.app"],
             ["reset", "ListenEvent", "com.veloop.service"],
             ["reset", "Accessibility", "com.veloop.service"],
+            ["reset", "PostEvent", "com.veloop.service"],
         ])
     }
 
@@ -32,6 +34,36 @@ final class TCCPermissionResetterTests: XCTestCase {
         XCTAssertEqual(recorder.arguments, [
             ["reset", "ListenEvent", "com.veloop.app"],
             ["reset", "Accessibility", "com.veloop.app"],
+        ])
+    }
+
+    func testMissingLegacyBundleDoesNotBlockCurrentApplicationCleanup() throws {
+        let recorder = CommandRecorder()
+        let resetter = TCCPermissionResetter { executable, arguments in
+            recorder.append(executable: executable, arguments: arguments)
+            return arguments.last == "com.veloop.service" ? 64 : 0
+        }
+
+        try resetter.resetVeloopPermissions()
+
+        XCTAssertEqual(recorder.arguments.count, 6)
+        XCTAssertEqual(recorder.arguments.suffix(3), [
+            ["reset", "ListenEvent", "com.veloop.service"],
+            ["reset", "Accessibility", "com.veloop.service"],
+            ["reset", "PostEvent", "com.veloop.service"],
+        ])
+    }
+
+    func testLegacyResetFailureOtherThanMissingBundleIsReported() {
+        let recorder = CommandRecorder()
+        let resetter = TCCPermissionResetter { executable, arguments in
+            recorder.append(executable: executable, arguments: arguments)
+            return arguments == ["reset", "Accessibility", "com.veloop.service"] ? 1 : 0
+        }
+
+        XCTAssertThrowsError(try resetter.resetVeloopPermissions())
+        XCTAssertEqual(recorder.arguments.last, [
+            "reset", "Accessibility", "com.veloop.service",
         ])
     }
 }

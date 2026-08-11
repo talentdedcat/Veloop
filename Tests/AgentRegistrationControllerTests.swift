@@ -53,6 +53,20 @@ final class AgentRegistrationControllerTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: harness.executableURL), Data("main-executable".utf8))
     }
 
+    func testPermissionRefreshAlwaysForceRestartsLoadedAgentAndWaitsForReadiness() throws {
+        let harness = try RegistrationHarness(statuses: [1, 0, 0, 0, 0, 0, 0])
+        try harness.controller.ensureRegisteredAndRunning()
+        harness.launchctl.removeCalls()
+
+        try harness.controller.restartForPermissionRefresh()
+
+        XCTAssertEqual(harness.launchctl.calls, [
+            ["print", harness.serviceTarget],
+            ["kickstart", "-k", harness.serviceTarget],
+            ["print", harness.serviceTarget],
+        ])
+    }
+
     func testDisabledLoginRunsCurrentAgentThenRemovesPersistentPlist() throws {
         let harness = try RegistrationHarness(startAtLogin: false, statuses: [1, 0, 0, 0])
 

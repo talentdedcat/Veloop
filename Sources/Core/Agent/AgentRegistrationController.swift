@@ -109,6 +109,29 @@ public final class AgentRegistrationController: AgentLifecycleControlling, @unch
         }
     }
 
+    public func restartForPermissionRefresh() throws {
+        try lock.withLock {
+            try validateApplicationIdentity()
+            let shouldRemoveLaunchAgent = !startAtLoginPreference
+            do {
+                _ = try installLaunchAgent()
+                try requireSuccess(["kickstart", "-k", serviceTarget])
+                guard waitForReadiness() else {
+                    throw AgentRegistrationError.readinessTimedOut
+                }
+                try requireSuccess(["print", serviceTarget])
+            } catch {
+                if shouldRemoveLaunchAgent {
+                    try? removeLaunchAgentFile()
+                }
+                throw error
+            }
+            if shouldRemoveLaunchAgent {
+                try removeLaunchAgentFile()
+            }
+        }
+    }
+
     private func ensureRegisteredAndRunningLocked() throws {
         try validateApplicationIdentity()
         if isAgentResponsive() { return }

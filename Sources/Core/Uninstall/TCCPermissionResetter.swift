@@ -7,11 +7,16 @@ public protocol TCCPermissionResetting: Sendable {
 public struct TCCPermissionResetter: TCCPermissionResetting, Sendable {
     public typealias Runner = @Sendable (URL, [String]) throws -> Int32
 
-    private static let commands = [
+    private static let requiredCommands = [
         ["reset", "ListenEvent", "com.veloop.app"],
         ["reset", "Accessibility", "com.veloop.app"],
+        ["reset", "PostEvent", "com.veloop.app"],
+    ]
+
+    private static let legacyCommands = [
         ["reset", "ListenEvent", "com.veloop.service"],
         ["reset", "Accessibility", "com.veloop.service"],
+        ["reset", "PostEvent", "com.veloop.service"],
     ]
 
     private let runner: Runner
@@ -28,9 +33,15 @@ public struct TCCPermissionResetter: TCCPermissionResetting, Sendable {
 
     public func resetVeloopPermissions() throws {
         let executable = URL(fileURLWithPath: "/usr/bin/tccutil")
-        for arguments in Self.commands {
+        for arguments in Self.requiredCommands {
             let status = try runner(executable, arguments)
             guard status == 0 else {
+                throw TCCPermissionResetError.commandFailed(arguments, status)
+            }
+        }
+        for arguments in Self.legacyCommands {
+            let status = try runner(executable, arguments)
+            guard status == 0 || status == 64 else {
                 throw TCCPermissionResetError.commandFailed(arguments, status)
             }
         }

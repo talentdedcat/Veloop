@@ -43,6 +43,7 @@ public final class ControlViewModel {
     private let lifecycle: AgentLifecycleControlling
     private let queue = DispatchQueue(label: "com.veloop.control", qos: .utility)
     private var launchSynchronizationInProgress = false
+    private var permissionRefreshPending = false
     private var synchronizationRevision: UInt64 = 0
 
     public init(
@@ -56,6 +57,11 @@ public final class ControlViewModel {
     public func applicationDidBecomeActive() async {
         guard !Task.isCancelled else { return }
         guard !launchSynchronizationInProgress else { return }
+        if permissionRefreshPending {
+            permissionRefreshPending = false
+            await restartAgentForPermissionRefresh()
+            return
+        }
         await synchronizeAllowingRecovery()
     }
 
@@ -141,6 +147,7 @@ public final class ControlViewModel {
               !permissions.isAllowed(for: group) else {
             return
         }
+        permissionRefreshPending = true
 
         let revision = beginSynchronization()
         guard !shouldStop(revision: revision) else { return }
@@ -186,6 +193,28 @@ public final class ControlViewModel {
         let recoveredState = await offMain { [agent] in try agent.state() }
         guard !shouldStop(revision: revision) else { return }
         switch recoveredState {
+        case let .success(state):
+            publishFresh(state, revision: revision)
+        case .failure:
+            publishFailure(.agentUnavailable, revision: revision)
+        }
+    }
+
+    private func restartAgentForPermissionRefresh() async {
+        let revision = beginSynchronization()
+        guard !shouldStop(revision: revision) else { return }
+        let restartResult: Result<Void, Error> = await offMain { [lifecycle] in
+            try lifecycle.restartForPermissionRefresh()
+        }
+        guard !shouldStop(revision: revision) else { return }
+        guard case .success = restartResult else {
+            publishFailure(.agentUnavailable, revision: revision)
+            return
+        }
+
+        let stateResult = await offMain { [agent] in try agent.state() }
+        guard !shouldStop(revision: revision) else { return }
+        switch stateResult {
         case let .success(state):
             publishFresh(state, revision: revision)
         case .failure:
