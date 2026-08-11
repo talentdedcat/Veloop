@@ -35,27 +35,15 @@ final class EventPermissionController {
     private let preflightListenEventAccess: () -> Bool
     private let preflightPostEventAccess: () -> Bool
     private let preflightAccessibility: () -> Bool
-    private let requestListenEventAccess: () -> Bool
-    private let requestPostEventAccess: () -> Bool
-    private let requestAccessibility: () -> Bool
 
     init(
         preflightListenEventAccess: @escaping () -> Bool = { CGPreflightListenEventAccess() },
         preflightPostEventAccess: @escaping () -> Bool = { CGPreflightPostEventAccess() },
-        preflightAccessibility: @escaping () -> Bool = { AXIsProcessTrusted() },
-        requestListenEventAccess: @escaping () -> Bool = { CGRequestListenEventAccess() },
-        requestPostEventAccess: @escaping () -> Bool = { CGRequestPostEventAccess() },
-        requestAccessibility: @escaping () -> Bool = {
-            let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-            return AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
-        }
+        preflightAccessibility: @escaping () -> Bool = { AXIsProcessTrusted() }
     ) {
         self.preflightListenEventAccess = preflightListenEventAccess
         self.preflightPostEventAccess = preflightPostEventAccess
         self.preflightAccessibility = preflightAccessibility
-        self.requestListenEventAccess = requestListenEventAccess
-        self.requestPostEventAccess = requestPostEventAccess
-        self.requestAccessibility = requestAccessibility
     }
 
     func status() -> EventPermissionStatus {
@@ -68,22 +56,7 @@ final class EventPermissionController {
 
     @discardableResult
     func request(_ group: EventPermissionGroup) -> EventPermissionStatus {
-        let currentStatus = status()
-
-        switch group {
-        case .inputMonitoring:
-            if !currentStatus.listenEvents {
-                _ = requestListenEventAccess()
-            }
-        case .accessibility:
-            if !currentStatus.postEvents {
-                _ = requestPostEventAccess()
-            }
-            if !currentStatus.accessibility {
-                _ = requestAccessibility()
-            }
-        }
-
+        _ = group
         return status()
     }
 }

@@ -68,33 +68,20 @@ final class PermissionUISourceContractTests: XCTestCase {
         ))
     }
 
-    func testSettingsActionsUseOneGatedGroupedRequestHelper() throws {
+    func testSettingsActionsOnlyNavigateWithoutRequestingPermissions() throws {
         let controller = try text("Sources/App/ControlViewController.swift")
         let inputAction = try functionBody(named: "openInputSettings", in: controller)
         let accessibilityAction = try functionBody(named: "openAccessibilitySettings", in: controller)
         let helper = try functionBody(named: "openSystemSettings", in: controller)
 
         XCTAssertTrue(inputAction.contains(
-            "openSystemSettings(\"Privacy_ListenEvent\", permissionGroup: .inputMonitoring)"
+            "openSystemSettings(\"Privacy_ListenEvent\")"
         ))
         XCTAssertTrue(accessibilityAction.contains(
-            "openSystemSettings(\"Privacy_Accessibility\", permissionGroup: .accessibility)"
+            "openSystemSettings(\"Privacy_Accessibility\")"
         ))
-        let snapshot = try XCTUnwrap(helper.range(of:
-            "let displayState = model.permissionSyncState.displayState(for: permissionGroup)"
-        ))
-        let open = try XCTUnwrap(helper.range(of: "NSWorkspace.shared.open(url)"))
-        let gate = try XCTUnwrap(helper.range(of:
-            "guard displayState == .missing else { return }"
-        ))
-        let request = try XCTUnwrap(helper.range(of:
-            "Task { await model.requestPermissions(permissionGroup) }"
-        ))
-
-        XCTAssertLessThan(snapshot.lowerBound, open.lowerBound)
-        XCTAssertLessThan(open.lowerBound, gate.lowerBound)
-        XCTAssertLessThan(open.lowerBound, request.lowerBound)
-        XCTAssertEqual(controller.components(separatedBy: "model.requestPermissions(").count - 1, 1)
+        XCTAssertTrue(helper.contains("NSWorkspace.shared.open(url)"))
+        XCTAssertFalse(controller.contains("model.requestPermissions("))
         XCTAssertFalse(try functionBody(named: "render", in: controller).contains("requestPermissions"))
     }
 

@@ -110,6 +110,18 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertTrue(request.contains("permissions.request(group)"))
         XCTAssertTrue(request.contains("synchronizeInputSubsystem(listenEvents: status.listenEvents)"))
         XCTAssertTrue(request.contains("return encodedResponse(status)"))
+
+        let permissionController = try source(
+            "Sources/Core/Permissions/EventPermissionController.swift"
+        )
+        for forbidden in [
+            "CGRequestListenEventAccess",
+            "CGRequestPostEventAccess",
+            "AXIsProcessTrustedWithOptions",
+            "kAXTrustedCheckOptionPrompt",
+        ] {
+            XCTAssertFalse(permissionController.contains(forbidden))
+        }
     }
 
     func testControlStateSynchronizesInputFromTheSamePermissionSnapshot() throws {

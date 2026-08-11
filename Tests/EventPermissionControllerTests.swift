@@ -58,83 +58,23 @@ final class EventPermissionControllerTests: XCTestCase {
         XCTAssertEqual(spy.accessibilityPreflightCount, 2)
     }
 
-    func testInputMonitoringRequestPromptsOnlyForMissingListenAccessAndReturnsFreshStatus() {
+    func testCompatibilityRequestOnlyReturnsFreshPreflightStatus() {
         let spy = PermissionSpy(listenEvents: false, postEvents: false, accessibility: false)
-        spy.onRequestListen = { spy.listenEvents = true }
         let controller = spy.makeController()
 
-        let status = controller.request(.inputMonitoring)
-
-        XCTAssertEqual(spy.listenRequestCount, 1)
-        XCTAssertEqual(spy.postRequestCount, 0)
-        XCTAssertEqual(spy.accessibilityRequestCount, 0)
-        XCTAssertEqual(spy.listenPreflightCount, 2)
-        XCTAssertEqual(spy.postPreflightCount, 2)
-        XCTAssertEqual(spy.accessibilityPreflightCount, 2)
-        XCTAssertEqual(
-            status,
-            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: false)
-        )
-    }
-
-    func testInputMonitoringRequestDoesNotPromptWhenGroupIsAlreadyGranted() {
-        let spy = PermissionSpy(listenEvents: true, postEvents: false, accessibility: false)
-
-        let status = spy.makeController().request(.inputMonitoring)
-
-        XCTAssertEqual(spy.listenRequestCount, 0)
-        XCTAssertEqual(spy.postRequestCount, 0)
-        XCTAssertEqual(spy.accessibilityRequestCount, 0)
-        XCTAssertTrue(status.isAllowed(for: .inputMonitoring))
-    }
-
-    func testAccessibilityRequestPromptsForMissingPostAndAccessibilityAccessAndReturnsFreshStatus() {
-        let spy = PermissionSpy(listenEvents: false, postEvents: false, accessibility: false)
-        spy.onRequestPost = { spy.postEvents = true }
-        spy.onRequestAccessibility = { spy.accessibility = true }
-        let controller = spy.makeController()
+        spy.listenEvents = true
+        spy.postEvents = true
+        spy.accessibility = true
 
         let status = controller.request(.accessibility)
 
-        XCTAssertEqual(spy.listenRequestCount, 0)
-        XCTAssertEqual(spy.postRequestCount, 1)
-        XCTAssertEqual(spy.accessibilityRequestCount, 1)
         XCTAssertEqual(
             status,
-            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true)
+            EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: true)
         )
-    }
-
-    func testAccessibilityRequestPromptsOnlyForMissingChecks() {
-        let cases: [(postEvents: Bool, accessibility: Bool, expectedPost: Int, expectedAccessibility: Int)] = [
-            (true, false, 0, 1),
-            (false, true, 1, 0),
-        ]
-
-        for testCase in cases {
-            let spy = PermissionSpy(
-                listenEvents: false,
-                postEvents: testCase.postEvents,
-                accessibility: testCase.accessibility
-            )
-
-            _ = spy.makeController().request(.accessibility)
-
-            XCTAssertEqual(spy.listenRequestCount, 0)
-            XCTAssertEqual(spy.postRequestCount, testCase.expectedPost)
-            XCTAssertEqual(spy.accessibilityRequestCount, testCase.expectedAccessibility)
-        }
-    }
-
-    func testAccessibilityRequestDoesNotPromptWhenGroupIsAlreadyGranted() {
-        let spy = PermissionSpy(listenEvents: false, postEvents: true, accessibility: true)
-
-        let status = spy.makeController().request(.accessibility)
-
-        XCTAssertEqual(spy.listenRequestCount, 0)
-        XCTAssertEqual(spy.postRequestCount, 0)
-        XCTAssertEqual(spy.accessibilityRequestCount, 0)
-        XCTAssertTrue(status.isAllowed(for: .accessibility))
+        XCTAssertEqual(spy.listenPreflightCount, 1)
+        XCTAssertEqual(spy.postPreflightCount, 1)
+        XCTAssertEqual(spy.accessibilityPreflightCount, 1)
     }
 }
 
@@ -146,14 +86,6 @@ private final class PermissionSpy {
     var listenPreflightCount = 0
     var postPreflightCount = 0
     var accessibilityPreflightCount = 0
-    var listenRequestCount = 0
-    var postRequestCount = 0
-    var accessibilityRequestCount = 0
-
-    var onRequestListen: () -> Void = {}
-    var onRequestPost: () -> Void = {}
-    var onRequestAccessibility: () -> Void = {}
-
     init(listenEvents: Bool, postEvents: Bool, accessibility: Bool) {
         self.listenEvents = listenEvents
         self.postEvents = postEvents
@@ -172,21 +104,6 @@ private final class PermissionSpy {
             },
             preflightAccessibility: {
                 self.accessibilityPreflightCount += 1
-                return self.accessibility
-            },
-            requestListenEventAccess: {
-                self.listenRequestCount += 1
-                self.onRequestListen()
-                return self.listenEvents
-            },
-            requestPostEventAccess: {
-                self.postRequestCount += 1
-                self.onRequestPost()
-                return self.postEvents
-            },
-            requestAccessibility: {
-                self.accessibilityRequestCount += 1
-                self.onRequestAccessibility()
                 return self.accessibility
             }
         )
