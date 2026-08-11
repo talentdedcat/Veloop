@@ -68,7 +68,7 @@ brew install --cask Veloop
 
 ## 权限
 
-请在“**系统设置 > 隐私与安全性**”中为 Veloop 批准：
+用户只需开启“辅助功能”。请在“**系统设置 > 隐私与安全性 > 辅助功能**”中为 Veloop 批准：
 
 <table align="center">
   <thead>
@@ -79,33 +79,31 @@ brew install --cask Veloop
   </thead>
   <tbody>
     <tr>
-      <td><strong>输入监控</strong></td>
-      <td>在剪贴板切换已启用时监听全局 Command-V 序列。</td>
-    </tr>
-    <tr>
       <td><strong>辅助功能</strong></td>
-      <td>选中历史记录后发送最终的模拟粘贴事件，并在 Palette 无法提供坐标时定位当前聚焦光标。</td>
+      <td>监听全局 Command-V 序列、发送最终的模拟粘贴事件，并在 Palette 无法提供坐标时定位当前聚焦光标。</td>
     </tr>
   </tbody>
 </table>
 
-文本光标定位首先查询 Palette。只有 Palette 结果不可用或无效时，Veloop 才会读取当前聚焦的 Accessibility 元素中折叠选区的矩形，并且只会在辅助功能已经获得授权时读取。缺少这两项权限时，剪贴板捕获仍会继续。当 Veloop 关闭或输入监控不可用时，全局 Event Tap 停止，隐藏 Palette 取消选中，系统标准粘贴行为保持不变。
+辅助功能已包含 Veloop 所需的事件监听和事件发送能力，因此不需要单独配置输入监控。Veloop 会在启用剪贴板切换前分别检查监听、事件发送和 Accessibility 访问能力。因此，即使“输入监控”列表中没有 Veloop，软件仍可正常工作。
+
+文本光标定位首先查询 Palette。只有 Palette 结果不可用或无效时，Veloop 才会读取当前聚焦的 Accessibility 元素中折叠选区的矩形，并且只会在辅助功能已经获得授权时读取。没有辅助功能授权时，剪贴板捕获仍会继续。当 Veloop 关闭或必需的事件监听能力不可用时，全局 Event Tap 停止，隐藏 Palette 取消选中，系统标准粘贴行为保持不变。
 
 ### 权限状态与故障排查
 
-权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。Veloop 绝不会主动调用 macOS 权限弹窗。权限按钮始终可以点击，并且只会打开对应的“系统设置”页面，因此也能用于检查或修改已有授权。
+权限状态由后台 Agent 实时检查。“检查中”和“Agent 不可用”都不同于“缺失”。Veloop 绝不会主动调用 macOS 权限弹窗。权限按钮始终可以点击，并且只会打开“系统设置”中的“辅助功能”页面，因此也能用于检查或修改已有授权。
 
-Veloop 只使用一个权限身份和一个显示名称：`Veloop`（`com.veloop.app`）。不会安装独立的 Veloop Agent.app。请在两个隐私权限页面中添加或启用 `/Applications/Veloop.app`。后台运行时，Veloop 会把完整的已签名应用包复制到隐藏运行路径 `~/Library/Application Support/Veloop/AgentRuntime/Veloop.app`，并以 `--agent` 模式运行其中的 `Contents/MacOS/Veloop`。保留 `.app` 应用包形式后，macOS 会在隐私权限列表中显示 Veloop Logo；可执行文件内容、代码哈希、应用身份和显示名称完全相同。由于运行副本位于 `/Applications` 之外，已安装的 `/Applications/Veloop.app` 不会被占用，关闭控制窗口后即可直接移到废纸篓。
+Veloop 只使用一个权限身份和一个显示名称：`Veloop`（`com.veloop.app`）。不会安装独立的 Veloop Agent.app。请在“辅助功能”页面中添加或启用 `/Applications/Veloop.app`。后台运行时，Veloop 会把完整的已签名应用包复制到隐藏运行路径 `~/Library/Application Support/Veloop/AgentRuntime/Veloop.app`，并以 `--agent` 模式运行其中的 `Contents/MacOS/Veloop`。保留 `.app` 应用包形式后，macOS 会在隐私权限列表中显示 Veloop Logo；可执行文件内容、代码哈希、应用身份和显示名称完全相同。由于运行副本位于 `/Applications` 之外，已安装的 `/Applications/Veloop.app` 不会被占用，关闭控制窗口后即可直接移到废纸篓。
 
-ad-hoc 二进制发生变化时，代码哈希也会变化，macOS 无法把旧授权安全地转移给新二进制。Veloop 检测到已安装可执行文件发生变化时，会在启动新 Agent 前清除旧的 Veloop 权限记录。ad-hoc 二进制更新后重新启用一次这两项权限，即可消除“旧 Veloop 条目显示已开启、当前二进制却被拒绝”的错误状态。
+ad-hoc 二进制发生变化时，代码哈希也会变化，macOS 无法把旧授权安全地转移给新二进制。Veloop 检测到已安装可执行文件发生变化时，会在启动新 Agent 前清除旧的 Veloop 权限记录。ad-hoc 二进制更新后重新启用一次“辅助功能”，即可消除“旧 Veloop 条目显示已开启、当前二进制却被拒绝”的错误状态。
 
 曾从旧的无后缀 `AgentRuntime/Veloop` 路径运行 Agent 的开发版本，可能会在“辅助功能”中留下一个已关闭、使用通用图标的 Veloop 条目。它属于已经移除的路径型 TCC 身份，不是当前 Veloop；选中这个已关闭条目并点击一次减号即可移除。当前版本始终从 `AgentRuntime/Veloop.app` 运行 Agent，新权限条目会显示 Veloop 名称和 Logo，不会再产生这种路径型重复项。
 
-每次激活时，Veloop 都会优先查询健康的 Agent，不会先重启。socket 每个阶段的截止时间为 200 ms，仅在查询失败后执行一次恢复。如果返回状态仍缺少任一权限，Veloop 只会重启一次 Agent，等待新 socket 就绪并立即读取新的权限状态。这样也能识别用户直接在“系统设置”中进行的修改，因为 macOS 只会让新进程使用刚添加的输入监控授权；权限完整的 Agent 不会被重启，Veloop 控制应用本身保持打开。
+每次激活时，Veloop 都会优先查询健康的 Agent，不会先重启。socket 每个阶段的截止时间为 200 ms，仅在查询失败后执行一次恢复。如果返回状态仍缺少任一必需能力，Veloop 只会重启一次 Agent，等待新 socket 就绪并立即读取新的权限状态。这样也能识别用户直接在“系统设置”中进行的修改，因为 macOS 只会让新进程使用刚添加的辅助功能授权；能力完整的 Agent 不会被重启，Veloop 控制应用本身保持打开。
 
 ## 卸载行为
 
-“移到废纸篓时”提供两个选择。默认的“保留历史记录和设置”会在控制窗口关闭且 `/Applications/Veloop.app` 被移到废纸篓后，移除“输入监控”和“辅助功能”权限条目、LaunchAgent、包外 Agent 运行副本、Palette、其他运行时文件和卸载监视器，但保留剪贴板历史与设置。“移除所有内容”还会删除全部 Veloop 历史、设置、偏好、缓存、保存状态和 WebKit 数据。发布流程会在 macOS 本机验证权限条目确实消失，并核对 `config.json` 与 `history.json` 的内容哈希在默认保留模式下完全不变。
+“移到废纸篓时”提供两个选择。默认的“保留历史记录和设置”会在控制窗口关闭且 `/Applications/Veloop.app` 被移到废纸篓后，移除当前和旧版 Veloop 权限记录，包括旧版本产生的输入监控记录，同时移除 LaunchAgent、包外 Agent 运行副本、Palette、其他运行时文件和卸载监视器，但保留剪贴板历史与设置。“移除所有内容”还会删除全部 Veloop 历史、设置、偏好、缓存、保存状态和 WebKit 数据。发布流程会在 macOS 本机验证权限记录确实消失，并核对 `config.json` 与 `history.json` 的内容哈希在默认保留模式下完全不变。
 
 `brew uninstall --cask veloop` 始终执行彻底清理，不受废纸篓设置影响。`brew uninstall --zap --cask veloop` 的最终状态相同。对应的直接命令是 `veloopctl uninstall --purge`。
 

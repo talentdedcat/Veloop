@@ -68,7 +68,7 @@ History stops at both ends instead of wrapping. If the current text surface does
 
 ## Permissions
 
-Approve Veloop in **System Settings > Privacy & Security**:
+Accessibility is the only permission users need to enable. Approve Veloop in **System Settings > Privacy & Security > Accessibility**:
 
 <table align="center">
   <thead>
@@ -79,33 +79,31 @@ Approve Veloop in **System Settings > Privacy & Security**:
   </thead>
   <tbody>
     <tr>
-      <td><strong>Input Monitoring</strong></td>
-      <td>Observe the global Command-V sequence while cycling is enabled.</td>
-    </tr>
-    <tr>
       <td><strong>Accessibility</strong></td>
-      <td>Send the final synthetic paste event and locate the focused caret when the Palette cannot provide it.</td>
+      <td>Observe the global Command-V sequence, send the final synthetic paste event, and locate the focused caret when the Palette cannot provide it.</td>
     </tr>
   </tbody>
 </table>
 
-Caret positioning queries the Palette first. Only when that result is unavailable or invalid does Veloop read the collapsed selection bounds of the current focused Accessibility element, and only when Accessibility is already authorized. Clipboard capture continues without either permission. When Veloop is disabled or Input Monitoring is unavailable, the global Event Tap stops, the hidden Palette is deselected, and standard paste behavior remains unchanged.
+Accessibility grants the event-listening and event-posting capabilities Veloop needs, so no separate Input Monitoring setup is required. Veloop verifies listening, posting, and Accessibility access separately before enabling clipboard cycling. It is therefore normal for Veloop to work without appearing in the Input Monitoring list.
+
+Caret positioning queries the Palette first. Only when that result is unavailable or invalid does Veloop read the collapsed selection bounds of the current focused Accessibility element, and only when Accessibility is already authorized. Clipboard capture continues without Accessibility. When Veloop is disabled or required event listening is unavailable, the global Event Tap stops, the hidden Palette is deselected, and standard paste behavior remains unchanged.
 
 ### Permission status and troubleshooting
 
-Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” Veloop never invokes the macOS permission prompt. The permission buttons remain available at all times and only open the corresponding System Settings pane, so they can also be used to inspect or change an existing grant.
+Permission status is checked live by the background Agent. “Checking” and “Agent unavailable” are distinct from “Missing.” Veloop never invokes the macOS permission prompt. The permission button remains available at all times and only opens the Accessibility pane in System Settings, so it can also be used to inspect or change an existing grant.
 
-Veloop uses one permission identity and one display name: `Veloop` (`com.veloop.app`). No separate Veloop Agent.app is installed. In each privacy pane, add or enable `/Applications/Veloop.app`. For background operation, Veloop copies the exact signed application bundle to the hidden runtime path `~/Library/Application Support/Veloop/AgentRuntime/Veloop.app` and runs its `Contents/MacOS/Veloop` in `--agent` mode. Keeping the `.app` bundle form lets macOS show the Veloop logo in privacy lists; the executable bytes, code hash, application identity, and display name remain the same. Because the runtime copy is outside `/Applications`, the installed `/Applications/Veloop.app` is not held open and can be moved directly to Trash after the control window is closed.
+Veloop uses one permission identity and one display name: `Veloop` (`com.veloop.app`). No separate Veloop Agent.app is installed. In the Accessibility pane, add or enable `/Applications/Veloop.app`. For background operation, Veloop copies the exact signed application bundle to the hidden runtime path `~/Library/Application Support/Veloop/AgentRuntime/Veloop.app` and runs its `Contents/MacOS/Veloop` in `--agent` mode. Keeping the `.app` bundle form lets macOS show the Veloop logo in privacy lists; the executable bytes, code hash, application identity, and display name remain the same. Because the runtime copy is outside `/Applications`, the installed `/Applications/Veloop.app` is not held open and can be moved directly to Trash after the control window is closed.
 
-Because a changed ad-hoc binary has a new code hash, macOS cannot safely transfer the old grant to that binary. When Veloop detects a changed installed executable, it clears stale Veloop permission records before starting the new Agent. Re-enable both permissions once after an ad-hoc binary update; this removes the misleading case where an old Veloop row appears enabled but the current binary is denied.
+Because a changed ad-hoc binary has a new code hash, macOS cannot safely transfer the old grant to that binary. When Veloop detects a changed installed executable, it clears stale Veloop permission records before starting the new Agent. Re-enable Accessibility once after an ad-hoc binary update; this removes the misleading case where an old Veloop row appears enabled but the current binary is denied.
 
 Development builds that ran the Agent from the old extensionless `AgentRuntime/Veloop` path could leave one disabled Veloop row with a generic icon in Accessibility. That row belongs to the removed path-based TCC identity, not the current Veloop. Select that disabled row and use the minus button once to remove it. Current builds always run the Agent from `AgentRuntime/Veloop.app`, so new permission rows use the Veloop name and logo and this path-based duplicate is not created again.
 
-On every activation, Veloop queries the healthy Agent first without restarting it. Socket operations have a 200 ms per-phase deadline, and recovery runs only after that query fails. If the returned state is still missing either permission, Veloop restarts only the Agent once, waits for its new socket, and reads the fresh permission state immediately. This also detects changes made directly in System Settings because macOS applies a newly added Input Monitoring grant to a new process; a fully authorized Agent is never restarted, and the Veloop control app stays open.
+On every activation, Veloop queries the healthy Agent first without restarting it. Socket operations have a 200 ms per-phase deadline, and recovery runs only after that query fails. If the returned state still lacks any required capability, Veloop restarts only the Agent once, waits for its new socket, and reads the fresh permission state immediately. This also detects changes made directly in System Settings because macOS applies a newly added Accessibility grant to a new process; a fully authorized Agent is never restarted, and the Veloop control app stays open.
 
 ## Uninstall behavior
 
-The **When moved to Trash** setting has two choices. **Preserve History and Settings** is the default: after the control window is closed, moving `/Applications/Veloop.app` to Trash removes the Input Monitoring and Accessibility permission rows, LaunchAgents, the external Agent runtime copy, the Palette, other runtime files, and the uninstall watcher while retaining clipboard history and settings. **Remove Everything** also deletes all Veloop history, settings, preferences, caches, saved state, and WebKit data. The permission-row removal and byte-for-byte preservation of `config.json` and `history.json` are verified on macOS by the release workflow.
+The **When moved to Trash** setting has two choices. **Preserve History and Settings** is the default: after the control window is closed, moving `/Applications/Veloop.app` to Trash removes current and legacy Veloop permission records, including Input Monitoring records created by earlier builds, plus LaunchAgents, the external Agent runtime copy, the Palette, other runtime files, and the uninstall watcher while retaining clipboard history and settings. **Remove Everything** also deletes all Veloop history, settings, preferences, caches, saved state, and WebKit data. The permission-record removal and byte-for-byte preservation of `config.json` and `history.json` are verified on macOS by the release workflow.
 
 `brew uninstall --cask veloop` always performs a complete purge, regardless of the Trash setting. `brew uninstall --zap --cask veloop` has the same empty final state. The equivalent direct command is `veloopctl uninstall --purge`.
 

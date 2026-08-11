@@ -46,20 +46,22 @@ final class ReleaseMetadataTests: XCTestCase {
             "path-based duplicate is not created again",
             "a changed ad-hoc binary has a new code hash",
             "clears stale Veloop permission records",
-            "Re-enable both permissions once after an ad-hoc binary update",
+            "Re-enable Accessibility once after an ad-hoc binary update",
             "queries the healthy Agent first without restarting it",
-            "If the returned state is still missing either permission",
+            "If the returned state still lacks any required capability",
             "reads the fresh permission state immediately",
             "changes made directly in System Settings",
             "AgentRuntime/Veloop.app",
             "can be moved directly to Trash",
-            "removes the Input Monitoring and Accessibility permission rows",
+            "removes current and legacy Veloop permission records",
             "byte-for-byte preservation of `config.json` and `history.json`",
             "Preserve History and Settings",
             "Remove Everything",
             "always performs a complete purge",
             "Veloop never invokes the macOS permission prompt",
-            "open the corresponding System Settings pane",
+            "only opens the Accessibility pane in System Settings",
+            "Accessibility is the only permission users need to enable",
+            "verifies listening, posting, and Accessibility access separately",
             "queries the Palette first",
             "focused Accessibility element",
             "does not traverse the Accessibility tree",
@@ -69,6 +71,8 @@ final class ReleaseMetadataTests: XCTestCase {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
         XCTAssertFalse(readme.contains("reproducible public build"))
+        XCTAssertFalse(readme.contains("<strong>Input Monitoring</strong>"))
+        XCTAssertFalse(readme.contains("Re-enable both permissions"))
     }
 
     func testChineseReadmeDocumentsReleaseAndPermissionRecovery() throws {
@@ -87,20 +91,22 @@ final class ReleaseMetadataTests: XCTestCase {
             "不会再产生这种路径型重复项",
             "ad-hoc 二进制发生变化时，代码哈希也会变化",
             "清除旧的 Veloop 权限记录",
-            "ad-hoc 二进制更新后重新启用一次这两项权限",
+            "ad-hoc 二进制更新后重新启用一次“辅助功能”",
             "优先查询健康的 Agent，不会先重启",
-            "如果返回状态仍缺少任一权限",
+            "如果返回状态仍缺少任一必需能力",
             "立即读取新的权限状态",
             "直接在“系统设置”中进行的修改",
             "AgentRuntime/Veloop.app",
             "直接移到废纸篓",
-            "移除“输入监控”和“辅助功能”权限条目",
+            "移除当前和旧版 Veloop 权限记录",
             "`config.json` 与 `history.json` 的内容哈希",
             "保留历史记录和设置",
             "移除所有内容",
             "始终执行彻底清理",
             "Veloop 绝不会主动调用 macOS 权限弹窗",
-            "打开对应的“系统设置”页面",
+            "只会打开“系统设置”中的“辅助功能”页面",
+            "用户只需开启“辅助功能”",
+            "分别检查监听、事件发送和 Accessibility 访问能力",
             "首先查询 Palette",
             "当前聚焦的 Accessibility 元素",
             "不会遍历 Accessibility 树",
@@ -110,6 +116,8 @@ final class ReleaseMetadataTests: XCTestCase {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
         XCTAssertFalse(readme.contains("可复现的公开构建"))
+        XCTAssertFalse(readme.contains("<strong>输入监控</strong>"))
+        XCTAssertFalse(readme.contains("重新启用一次这两项权限"))
     }
 
     func testSourceGuideDescribesSingleIdentityAndImmediateRefresh() throws {
@@ -120,6 +128,8 @@ final class ReleaseMetadataTests: XCTestCase {
         ))
         XCTAssertTrue(sourceGuide.contains("one bounded state request before recovery"))
         XCTAssertTrue(sourceGuide.contains("force-restarts only the Agent once"))
+        XCTAssertTrue(sourceGuide.contains("Accessibility is the only user-configured permission"))
+        XCTAssertTrue(sourceGuide.contains("lacks any required capability"))
         XCTAssertTrue(sourceGuide.contains("queries the Palette first"))
         XCTAssertTrue(sourceGuide.contains("focused Accessibility element"))
         XCTAssertTrue(sourceGuide.contains("does not request permission"))
