@@ -64,6 +64,7 @@ final class ReleaseMetadataTests: XCTestCase {
             "focused Accessibility element",
             "does not traverse the Accessibility tree",
             "already-running applications do not need to reconnect to the Palette",
+            "native text editors, chat input fields, code editors, browser address fields, and editable web content",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }
@@ -103,7 +104,8 @@ final class ReleaseMetadataTests: XCTestCase {
             "首先查询 Palette",
             "当前聚焦的 Accessibility 元素",
             "不会遍历 Accessibility 树",
-            "已经运行的应用也不需要重新连接 Palette",
+            "已经运行的应用不需要重新连接 Palette",
+            "原生文本编辑器、聊天输入框、代码编辑器、浏览器地址栏和网页可编辑区域",
         ] {
             XCTAssertTrue(readme.contains(requiredText), requiredText)
         }

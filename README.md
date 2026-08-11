@@ -129,7 +129,7 @@ Neither path uses mouse position, click history, screenshots, OCR, background re
 
 ### Compatibility and fallback
 
-System Pinyin coexistence and Chinese composition have been verified in TextEdit. The production caret-query path has been verified in TextEdit, WeChat chat input, Notes, Xcode, Visual Studio Code, and editable web fields in Safari and Microsoft Edge. The Accessibility fallback means already-running applications do not need to reconnect to the Palette before Veloop can locate a focused editable field.
+System input-method coexistence and Chinese composition have been verified alongside the production caret-query path in native text editors, chat input fields, code editors, browser address fields, and editable web content. The Accessibility fallback means already-running applications do not need to reconnect to the Palette or restart before Veloop can locate a focused editable field.
 
 Measured warm local requests were approximately 1.6-7.2 ms on the test Mac; this is a local measurement, not a platform guarantee. The selected card is `348 × 104 pt`. Moving through history uses a 180 ms vertical Depth Push, while Reduce Motion uses a 100 ms crossfade.
 

@@ -129,7 +129,7 @@ Veloop 会安装一个不可见的附加式 `TISCategoryPaletteInputSource`。�
 
 ### 兼容性与回退行为
 
-系统拼音与 Palette 共存以及中文组词已在 TextEdit 验证。正式光标查询路径已验证 TextEdit、微信聊天输入框、备忘录、Xcode、Visual Studio Code，以及 Safari 和 Microsoft Edge 的可编辑网页输入框。借助 Accessibility 回退，已经运行的应用也不需要重新连接 Palette，Veloop 就能定位当前聚焦的可编辑区域。
+系统输入法与 Palette 共存、中文组词以及正式光标查询路径，已在原生文本编辑器、聊天输入框、代码编辑器、浏览器地址栏和网页可编辑区域中验证。借助 Accessibility 回退，已经运行的应用不需要重新连接 Palette 或重新启动，Veloop 就能定位当前聚焦的可编辑区域。
 
 测试 Mac 的热请求约为 1.6-7.2 ms；这是本机测量数据，不是平台固定保证。主卡片尺寸为 `348 × 104 pt`。切换历史使用 180 ms 垂直 Depth Push；开启“减少动态效果”后改用 100 ms 淡入淡出。
 
