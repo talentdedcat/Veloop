@@ -156,9 +156,69 @@ static void VeloopStartHostWatcher(void) {
 
 @interface VeloopPaletteController : IMKInputController
 @property(nonatomic, assign, getter=isActive) BOOL active;
+@property(nonatomic, assign) NSUInteger activationGeneration;
+@property(nonatomic, copy) NSString *registeredBundleIdentifier;
 @end
 
-static NSMapTable<NSString *, VeloopPaletteController *> *VeloopControllers;
+static NSMapTable<NSString *, NSHashTable<VeloopPaletteController *> *> *VeloopControllers;
+static NSUInteger VeloopControllerGeneration;
+
+static void VeloopRegisterController(
+    NSString *bundleIdentifier,
+    VeloopPaletteController *controller
+) {
+    if (bundleIdentifier.length == 0 || controller == nil) {
+        return;
+    }
+    @synchronized (VeloopControllers) {
+        NSHashTable<VeloopPaletteController *> *controllers =
+            [VeloopControllers objectForKey:bundleIdentifier];
+        if (controllers == nil) {
+            controllers = [NSHashTable weakObjectsHashTable];
+            [VeloopControllers setObject:controllers forKey:bundleIdentifier];
+        }
+        controller.activationGeneration = ++VeloopControllerGeneration;
+        [controllers addObject:controller];
+    }
+}
+
+static void VeloopUnregisterController(
+    NSString *bundleIdentifier,
+    VeloopPaletteController *controller
+) {
+    if (bundleIdentifier.length == 0 || controller == nil) {
+        return;
+    }
+    @synchronized (VeloopControllers) {
+        NSHashTable<VeloopPaletteController *> *controllers =
+            [VeloopControllers objectForKey:bundleIdentifier];
+        [controllers removeObject:controller];
+        if (controllers.count == 0) {
+            [VeloopControllers removeObjectForKey:bundleIdentifier];
+        }
+    }
+}
+
+static NSArray<VeloopPaletteController *> *VeloopActiveControllersForBundle(
+    NSString *bundleIdentifier
+) {
+    @synchronized (VeloopControllers) {
+        NSArray<VeloopPaletteController *> *controllers =
+            [[VeloopControllers objectForKey:bundleIdentifier] allObjects];
+        return [controllers sortedArrayUsingComparator:^NSComparisonResult(
+            VeloopPaletteController *left,
+            VeloopPaletteController *right
+        ) {
+            if (left.activationGeneration > right.activationGeneration) {
+                return NSOrderedAscending;
+            }
+            if (left.activationGeneration < right.activationGeneration) {
+                return NSOrderedDescending;
+            }
+            return NSOrderedSame;
+        }];
+    }
+}
 
 static BOOL VeloopIsCaretRect(NSRect rect) {
     return isfinite(rect.origin.x)
@@ -192,40 +252,33 @@ static NSDictionary *VeloopResponse(
 
 + (void)initialize {
     if (self == VeloopPaletteController.class) {
-        VeloopControllers = [NSMapTable strongToWeakObjectsMapTable];
+        VeloopControllers = [NSMapTable strongToStrongObjectsMapTable];
     }
 }
 
 - (void)activateServer:(id)sender {
     self.active = YES;
     NSString *clientBundle = [self.client bundleIdentifier];
-    if (clientBundle.length > 0) {
-        @synchronized (VeloopControllers) {
-            [VeloopControllers setObject:self forKey:clientBundle];
-        }
+    if (self.registeredBundleIdentifier.length > 0
+        && ![self.registeredBundleIdentifier isEqualToString:clientBundle]) {
+        VeloopUnregisterController(self.registeredBundleIdentifier, self);
     }
+    self.registeredBundleIdentifier = clientBundle;
+    VeloopRegisterController(clientBundle, self);
     [super activateServer:sender];
 }
 
 - (void)deactivateServer:(id)sender {
     self.active = NO;
-    NSString *clientBundle = [self.client bundleIdentifier];
-    @synchronized (VeloopControllers) {
-        if ([VeloopControllers objectForKey:clientBundle] == self) {
-            [VeloopControllers removeObjectForKey:clientBundle];
-        }
-    }
+    VeloopUnregisterController(self.registeredBundleIdentifier, self);
+    self.registeredBundleIdentifier = nil;
     [super deactivateServer:sender];
 }
 
 - (void)inputControllerWillClose {
     self.active = NO;
-    NSString *clientBundle = [self.client bundleIdentifier];
-    @synchronized (VeloopControllers) {
-        if ([VeloopControllers objectForKey:clientBundle] == self) {
-            [VeloopControllers removeObjectForKey:clientBundle];
-        }
-    }
+    VeloopUnregisterController(self.registeredBundleIdentifier, self);
+    self.registeredBundleIdentifier = nil;
     [super inputControllerWillClose];
 }
 
@@ -323,13 +376,17 @@ static CFDataRef VeloopHandleCaretRequest(
             return nil;
         }
 
-        VeloopPaletteController *controller = nil;
-        @synchronized (VeloopControllers) {
-            controller = [VeloopControllers objectForKey:requestedBundle];
+        NSDictionary *response = nil;
+        NSArray<VeloopPaletteController *> *controllers =
+            VeloopActiveControllersForBundle(requestedBundle);
+        for (VeloopPaletteController *controller in controllers) {
+            response = [controller
+                caretResponseForBundle:requestedBundle
+                processIdentifier:requestedProcessIdentifier.intValue];
+            if (response != nil) {
+                break;
+            }
         }
-        NSDictionary *response = [controller
-            caretResponseForBundle:requestedBundle
-            processIdentifier:requestedProcessIdentifier.intValue];
         if (response == nil) {
             return nil;
         }

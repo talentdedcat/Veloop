@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 cask "veloop" do
-  version "0.2.2"
-  sha256 "403ba0b535f36588d68af175b8c00bdefad1be2ef55e202eed9202e3413742bb"
+  version "0.2.3"
+  sha256 "bbee2d3b51c0a1561386f276ec0edb1d3dd93a3e33d2629b247470b33bed3ecf"
 
   url "https://github.com/talentdedcat/Veloop/releases/download/v#{version}/Veloop-#{version}-universal.dmg"
   name "Veloop"

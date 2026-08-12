@@ -179,6 +179,45 @@ final class FocusedAccessibilityCaretClientTests: XCTestCase {
         XCTAssertEqual(legacyBoundsReads, 0)
     }
 
+    func testTextMarkerBoundsDoNotRequireLegacySelectedRange() {
+        let markerBounds = CGRect(x: 420, y: 180, width: 0, height: 19)
+        let frame = CGRect(x: 400, y: 160, width: 300, height: 40)
+        let client = FocusedAccessibilityCaretClient(
+            isTrusted: { true },
+            readFocusedElement: { _ in
+                .element(
+                    processIdentifier: 42,
+                    frame: frame,
+                    textMarkerBounds: markerBounds,
+                    selectedRange: nil,
+                    boundsForRange: { _ in XCTFail("legacy range must not be queried"); return nil }
+                )
+            }
+        )
+
+        XCTAssertEqual(
+            client.query(target: Self.target),
+            .located(markerBounds, focusedElementFrame: frame)
+        )
+    }
+
+    func testMissingLegacyRangeWithoutTextMarkerStillFailsAsMissingSelection() {
+        let client = FocusedAccessibilityCaretClient(
+            isTrusted: { true },
+            readFocusedElement: { _ in
+                .element(
+                    processIdentifier: 42,
+                    frame: CGRect(x: 400, y: 160, width: 300, height: 40),
+                    textMarkerBounds: nil,
+                    selectedRange: nil,
+                    boundsForRange: { _ in XCTFail("legacy range must not be queried"); return nil }
+                )
+            }
+        )
+
+        XCTAssertEqual(client.query(target: Self.target), .failed(.missingSelection))
+    }
+
     func testMissingTextMarkerBoundsFallsBackToLegacyRange() {
         let legacyBounds = CGRect(x: 500, y: 300, width: 1, height: 18)
         let client = FocusedAccessibilityCaretClient(
@@ -231,6 +270,7 @@ final class FocusedAccessibilityCaretClientTests: XCTestCase {
 
     func testValidTextMarkerInsideFocusedFrameRemainsPreferred() {
         let marker = CGRect(x: 120, y: 111, width: 0, height: 18)
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 40)
         let client = FocusedAccessibilityCaretClient(
             isTrusted: { true },
             readFocusedElement: { _ in
@@ -238,7 +278,7 @@ final class FocusedAccessibilityCaretClientTests: XCTestCase {
                     processIdentifier: 42,
                     role: "AXTextField",
                     valueIsEmpty: true,
-                    frame: CGRect(x: 100, y: 100, width: 300, height: 40),
+                    frame: frame,
                     textMarkerBounds: marker,
                     selectedRange: CFRange(location: 0, length: 0),
                     boundsForRange: { _ in XCTFail("legacy range should not be queried"); return nil }
@@ -246,7 +286,10 @@ final class FocusedAccessibilityCaretClientTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(client.query(target: Self.target), .located(marker))
+        XCTAssertEqual(
+            client.query(target: Self.target),
+            .located(marker, focusedElementFrame: frame)
+        )
     }
 
     func testEmptyTextFieldFallsBackToCaretInsideFocusedFrame() throws {
@@ -338,7 +381,7 @@ final class FocusedAccessibilityCaretClientTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> CGRect {
-        guard case let .located(bounds, _) = result else {
+        guard case let .located(bounds, _, _) = result else {
             XCTFail("expected located result, got \(result)", file: file, line: line)
             throw CocoaError(.validationMissingMandatoryProperty)
         }

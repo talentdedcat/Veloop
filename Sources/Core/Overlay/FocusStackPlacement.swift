@@ -17,18 +17,51 @@ final class FocusStackPlacementSession {
     private let lock = NSLock()
     private let resolve: () -> NSRect?
     private var preparedFrame: NSRect?
+    private var generation: UInt64 = 0
 
     init(resolve: @escaping () -> NSRect?) {
         self.resolve = resolve
     }
 
     func prepare() -> Bool {
+        prepare(expectedGeneration: currentGeneration())
+    }
+
+    func makePreparation() -> () -> Bool {
+        let expectedGeneration = currentGeneration()
+        return { [weak self] in
+            self?.prepare(expectedGeneration: expectedGeneration) ?? false
+        }
+    }
+
+    private func currentGeneration() -> UInt64 {
         lock.lock()
         defer { lock.unlock() }
+        return generation
+    }
+
+    private func prepare(expectedGeneration: UInt64) -> Bool {
+        lock.lock()
+        guard generation == expectedGeneration else {
+            lock.unlock()
+            return false
+        }
         if preparedFrame != nil {
+            lock.unlock()
             return true
         }
-        preparedFrame = resolve()
+        lock.unlock()
+
+        let resolvedFrame = resolve()
+
+        lock.lock()
+        defer { lock.unlock() }
+        guard generation == expectedGeneration else {
+            return false
+        }
+        if preparedFrame == nil {
+            preparedFrame = resolvedFrame
+        }
         return preparedFrame != nil
     }
 
@@ -40,6 +73,7 @@ final class FocusStackPlacementSession {
 
     func reset() {
         lock.lock()
+        generation &+= 1
         preparedFrame = nil
         lock.unlock()
     }

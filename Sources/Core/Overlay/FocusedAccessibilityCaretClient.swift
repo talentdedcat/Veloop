@@ -35,18 +35,18 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
         guard processIdentifier == target.processIdentifier else {
             return .failed(.processMismatch)
         }
-        guard let selectedRange else { return .failed(.missingSelection) }
-        guard selectedRange.length == 0 else {
+        if let selectedRange, selectedRange.length != 0 {
             return .failed(.selectionNotCollapsed)
         }
 
         if let textMarkerBounds,
            Self.isUsableCaret(textMarkerBounds, inside: frame) {
-            return .located(textMarkerBounds)
+            return .located(textMarkerBounds, focusedElementFrame: frame)
         }
+        guard let selectedRange else { return .failed(.missingSelection) }
         if let bounds = boundsForRange(selectedRange),
            Self.isUsableCaret(bounds, inside: frame) {
-            return .located(bounds)
+            return .located(bounds, focusedElementFrame: frame)
         }
         if let estimatedBounds = Self.emptyTextControlCaret(
             role: role,
@@ -56,7 +56,8 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
         ) {
             return .located(
                 estimatedBounds,
-                source: .accessibilityEmptyTextControl
+                source: .accessibilityEmptyTextControl,
+                focusedElementFrame: frame
             )
         }
         return .failed(.missingBounds)

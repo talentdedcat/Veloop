@@ -3,11 +3,11 @@ import Foundation
 import XCTest
 
 final class ReleaseMetadataTests: XCTestCase {
-    func testPublicVersionIsZeroTwoTwo() {
-        XCTAssertEqual(AppConstants.version, "0.2.2")
+    func testPublicVersionIsZeroTwoThree() {
+        XCTAssertEqual(AppConstants.version, "0.2.3")
     }
 
-    func testTrackedBundleMetadataUsesVersionZeroTwoTwoAndBuildSeven() throws {
+    func testTrackedBundleMetadataUsesCurrentReleaseVersion() throws {
         for path in [
             "Configuration/VeloopApp-Info.plist",
             "Configuration/VeloopPalette-Info.plist",
@@ -17,25 +17,26 @@ final class ReleaseMetadataTests: XCTestCase {
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
 
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.2", path)
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "7", path)
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.3", path)
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "8", path)
         }
     }
 
-    func testCaskUsesVersionZeroTwoTwoAndRetainsARealChecksum() throws {
+    func testCaskUsesVersionZeroTwoThreeAndRetainsARealChecksum() throws {
         let cask = try text("Casks/veloop.rb")
-        XCTAssertTrue(cask.contains("version \"0.2.2\""))
+        XCTAssertTrue(cask.contains("version \"0.2.3\""))
         XCTAssertNotNil(
             cask.range(of: #"sha256 "[0-9a-f]{64}""#, options: .regularExpression)
         )
+        XCTAssertFalse(cask.contains(String(repeating: "0", count: 64)))
     }
 
     func testEnglishReadmeDocumentsPublicReleaseContract() throws {
         let readme = try text("README.md")
 
         for requiredText in [
-            "release-v0.2.2",
-            "Veloop-0.2.2-universal.dmg",
+            "release-v0.2.3",
+            "Veloop-0.2.3-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             "Accessibility is the only permission users need to enable",
@@ -61,8 +62,8 @@ final class ReleaseMetadataTests: XCTestCase {
         let readme = try text("Docs/README.zh-CN.md")
 
         for requiredText in [
-            "release-v0.2.2",
-            "Veloop-0.2.2-universal.dmg",
+            "release-v0.2.3",
+            "Veloop-0.2.3-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             "用户只需开启“辅助功能”",

@@ -62,6 +62,21 @@ final class CaretSourceContractTests: XCTestCase {
         let runtime = try text("Sources/Core/Agent/VeloopAgentRuntime.swift")
 
         XCTAssertTrue(runtime.contains("caretLocator.currentCaretLocation()?.globalRect"))
+        let placement = try XCTUnwrap(runtime.range(of: "placementSession.makePreparation()"))
+        let preparationQueue = try XCTUnwrap(
+            runtime.range(of: "cyclePreparationQueue.async", range: placement.lowerBound..<runtime.endIndex)
+        )
+        let invocation = try XCTUnwrap(
+            runtime.range(of: "preparePlacement()", range: preparationQueue.lowerBound..<runtime.endIndex)
+        )
+        XCTAssertLessThan(placement.lowerBound, preparationQueue.lowerBound)
+        XCTAssertLessThan(preparationQueue.lowerBound, invocation.lowerBound)
+        let controllerStart = try XCTUnwrap(runtime.range(of: "let cycleController"))
+        let preparationStart = try XCTUnwrap(
+            runtime.range(of: "prepareCycle:", range: controllerStart.lowerBound..<runtime.endIndex)
+        )
+        let eventCallbackConfiguration = runtime[controllerStart.lowerBound..<preparationStart.lowerBound]
+        XCTAssertFalse(eventCallbackConfiguration.contains("permissions?.status()"))
         XCTAssertFalse(runtime.contains("caretLifecycleTask"))
         XCTAssertFalse(runtime.contains("caretLocator.start()"))
         XCTAssertFalse(runtime.contains("caretLocator.stop()"))
@@ -81,7 +96,9 @@ final class CaretSourceContractTests: XCTestCase {
             "DISPATCH_SOURCE_TYPE_VNODE",
             "VeloopRemoveInstalledState",
             "isActive",
-            "removeObjectForKey:clientBundle",
+            "VeloopRegisterController",
+            "VeloopUnregisterController",
+            "VeloopActiveControllersForBundle",
             "dispatch_queue_create",
         ] {
             XCTAssertTrue(source.contains(required), "missing helper behavior: \(required)")
@@ -98,6 +115,16 @@ final class CaretSourceContractTests: XCTestCase {
         ] {
             XCTAssertFalse(source.contains(forbidden), "helper must stay additive: \(forbidden)")
         }
+    }
+
+    func testPaletteTriesEveryActiveContextForTheFrontmostApplication() throws {
+        let source = try text("Sources/Palette/main.m")
+        let handler = try bracedBody(after: "static CFDataRef VeloopHandleCaretRequest", in: source)
+
+        XCTAssertTrue(handler.contains("VeloopActiveControllersForBundle(requestedBundle)"))
+        XCTAssertTrue(handler.contains("for (VeloopPaletteController *controller in controllers)"))
+        XCTAssertTrue(handler.contains("if (response != nil)"))
+        XCTAssertFalse(handler.contains("[VeloopControllers objectForKey:requestedBundle]"))
     }
 
     func testPaletteCharacterAttributesCannotBlockCollapsedRangeCaretQuery() throws {

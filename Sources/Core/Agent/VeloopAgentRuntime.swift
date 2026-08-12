@@ -111,24 +111,35 @@ public final class VeloopAgentRuntime {
             pollIntervalMilliseconds: configuration.pollIntervalMilliseconds
         )
         let postPaste = { injector.postPaste() }
+        let cyclePreparationQueue = DispatchQueue(
+            label: "com.veloop.cycle-preparation",
+            qos: .userInteractive
+        )
 
         let cycleController = PasteCycleController(
             historyIDs: { historyStore.snapshotIDs() },
-            canCycle: { [weak permissions, weak self] in
-                guard let self else {
-                    return false
-                }
-                return self.isEnabled
-                    && permissions?.status().canCycle == true
-                    && placementSession.prepare()
+            canCycle: { [weak self] in
+                self?.isEnabled == true
             },
-            canContinueCycle: { [weak permissions, weak self] in
-                guard let self else {
-                    return false
+            canContinueCycle: { [weak self] in
+                self?.isEnabled == true
+            },
+            prepareCycle: { [weak permissions] completion in
+                let preparePlacement = placementSession.makePreparation()
+                cyclePreparationQueue.async {
+                    guard permissions?.status().canCycle == true,
+                          preparePlacement() else {
+                        completion(nil)
+                        return
+                    }
+                    let ids = historyStore.snapshotIDs()
+                    completion(ids.isEmpty ? nil : ids)
                 }
-                return self.isEnabled && permissions?.status().canCycle == true
             },
             present: presentationRelay.publish,
+            fallbackPaste: {
+                _ = postPaste()
+            },
             commit: { snapshotID in
                 guard let lease = historyStore.acquireLease(for: snapshotID) else {
                     _ = postPaste()

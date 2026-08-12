@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 enum AppConstants {
-    static let version = "0.2.2"
+    static let version = "0.2.3"
     static let bundleIdentifier = "com.veloop.app"
     static let agentLaunchAgentLabel = "com.veloop.service"
     static let uninstallWatcherLabel = "com.veloop.uninstall-watcher"

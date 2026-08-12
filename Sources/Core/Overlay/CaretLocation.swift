@@ -59,7 +59,8 @@ enum AccessibilityCaretFailure: String, Equatable, Sendable {
 enum AccessibilityCaretQueryResult: Equatable, Sendable {
     case located(
         CGRect,
-        source: CaretSource = .accessibilityFocusedElement
+        source: CaretSource = .accessibilityFocusedElement,
+        focusedElementFrame: CGRect? = nil
     )
     case failed(AccessibilityCaretFailure)
 }

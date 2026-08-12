@@ -78,8 +78,8 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(verifier.contains("Contents/Resources/veloopctl"))
         XCTAssertTrue(verifier.contains("com.veloop.app"))
         XCTAssertTrue(verifier.contains("com.talentdedcat.veloop.palette"))
-        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.2.2"))
-        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("\"7\""))
+        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.2.3"))
+        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("\"8\""))
         XCTAssertTrue(verifier.contains("x86_64") && verifier.contains("arm64"))
         XCTAssertTrue(verifier.contains("codesign --verify --deep --strict"))
         XCTAssertTrue(verifier.contains("Veloop Agent.app"))
@@ -166,7 +166,7 @@ final class PackagingContractTests: XCTestCase {
         ))
     }
 
-    func testPublicReleaseUsesVersion022AndBuildSeven() throws {
+    func testPublicReleaseUsesCurrentVersionMetadata() throws {
         for path in [
             "Configuration/VeloopApp-Info.plist",
             "Configuration/VeloopPalette-Info.plist",
@@ -176,8 +176,8 @@ final class PackagingContractTests: XCTestCase {
             let plist = try XCTUnwrap(
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.2")
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "7")
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.3")
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "8")
         }
     }
 
@@ -242,7 +242,7 @@ final class PackagingContractTests: XCTestCase {
         let gracePeriod = try XCTUnwrap(replacement.range(
             of: "Thread.sleep(forTimeInterval: Self.inputSourceDisableGracePeriod)"
         ))
-        let stop = try XCTUnwrap(replacement.range(of: "stopInstalledHelper()"))
+        let stop = try XCTUnwrap(replacement.range(of: "stopInstalledHelper(installedURL:"))
         let remove = try XCTUnwrap(replacement.range(of: "removeItem(at: installedURL)"))
         let copy = try XCTUnwrap(replacement.range(of: "copyItem(at: embeddedURL, to: installedURL)"))
         let register = try XCTUnwrap(installer.range(
@@ -277,7 +277,7 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(comparison.contains("return false"))
     }
 
-    func testPaletteHelperTerminationIsBoundedWithSIGTERMAsFallback() throws {
+    func testPaletteHelperTerminationWaitsAfterSignalsBeforeReplacement() throws {
         let installer = try text("Sources/App/PaletteInputSourceInstaller.swift")
         let stopStart = try XCTUnwrap(installer.range(of: "private func stopInstalledHelper"))
         let stopEnd = try XCTUnwrap(installer.range(
@@ -288,12 +288,30 @@ final class PackagingContractTests: XCTestCase {
 
         let terminate = try XCTUnwrap(stop.range(of: "application.terminate()"))
         let deadline = try XCTUnwrap(stop.range(of: "helperTerminationTimeout"))
-        let fallback = try XCTUnwrap(stop.range(of: "if !application.isTerminated"))
-        let signal = try XCTUnwrap(stop.range(of: "Darwin.kill(application.processIdentifier, SIGTERM)"))
+        let signal = try XCTUnwrap(stop.range(of: "Darwin.kill(processIdentifier, SIGTERM)"))
+        let signalWait = try XCTUnwrap(stop.range(
+            of: "helperSignalTerminationTimeout",
+            range: signal.upperBound..<stop.endIndex
+        ))
+        let forceSignal = try XCTUnwrap(stop.range(of: "SIGKILL"))
+        let forceWait = try XCTUnwrap(stop.range(
+            of: "helperForcedTerminationTimeout",
+            range: forceSignal.upperBound..<stop.endIndex
+        ))
+        let processProbe = try XCTUnwrap(stop.range(of: "isProcessRunning"))
 
         XCTAssertLessThan(terminate.lowerBound, deadline.lowerBound)
-        XCTAssertLessThan(deadline.lowerBound, fallback.lowerBound)
-        XCTAssertLessThan(fallback.lowerBound, signal.lowerBound)
+        XCTAssertLessThan(deadline.lowerBound, signal.lowerBound)
+        XCTAssertLessThan(signal.lowerBound, signalWait.lowerBound)
+        XCTAssertLessThan(signalWait.lowerBound, forceSignal.lowerBound)
+        XCTAssertLessThan(forceSignal.lowerBound, forceWait.lowerBound)
+        XCTAssertLessThan(deadline.lowerBound, processProbe.lowerBound)
+        XCTAssertTrue(installer.contains("Darwin.kill(processIdentifier, 0)"))
+        XCTAssertFalse(stop.contains("application.isTerminated"))
+        XCTAssertTrue(installer.contains("proc_listpids"))
+        XCTAssertTrue(installer.contains("proc_pidpath"))
+        XCTAssertTrue(installer.contains("installedURL: installedURL"))
+        XCTAssertTrue(installer.contains("Contents/MacOS/VeloopPalette"))
     }
 
     func testPaletteActivationIsOwnedByInputSubsystemCoordinator() throws {

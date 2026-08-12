@@ -123,12 +123,29 @@ final class CaretLocator {
             return nil
         }
         let screens = screensProvider()
-        if let response = query.query(target: target),
+        let paletteResponse = query.query(target: target)
+        let accessibilityResult = accessibilityQuery.query(target: target)
+        if let response = paletteResponse,
            response.processIdentifier == target.processIdentifier,
            let globalRect = PaletteCaretGeometry.cgCaretRect(
             fromAppKit: response.appKitRect,
             screens: screens
            ) {
+            if case let .located(
+                accessibilityBounds,
+                accessibilitySource,
+                focusedElementFrame
+            ) = accessibilityResult,
+            let focusedElementFrame,
+            !Self.isInsideFocusedElement(globalRect, frame: focusedElementFrame) {
+                return publishAccessibilityLocation(
+                    bounds: accessibilityBounds,
+                    source: accessibilitySource,
+                    target: target,
+                    screens: screens,
+                    status: "located-accessibility-stale-palette"
+                )
+            }
             return publishLocation(
                 globalRect: globalRect,
                 target: target,
@@ -138,7 +155,7 @@ final class CaretLocator {
             )
         }
 
-        switch accessibilityQuery.query(target: target) {
+        switch accessibilityResult {
         case let .failed(failure):
             diagnosticState.record(
                 status: failure.rawValue,
@@ -146,26 +163,12 @@ final class CaretLocator {
                 location: nil
             )
             return nil
-        case let .located(bounds, source):
-            guard let globalRect = GlobalCaretGeometry.validated(
-                bounds,
-                displayBounds: screens.map(\.cgDisplayBounds)
-            ) else {
-                diagnosticState.record(
-                    status: "invalid-accessibility-geometry",
-                    processIdentifier: target.processIdentifier,
-                    location: nil
-                )
-                return nil
-            }
-            return publishLocation(
-                globalRect: globalRect,
-                target: target,
+        case let .located(bounds, source, _):
+            return publishAccessibilityLocation(
+                bounds: bounds,
                 source: source,
-                confidence: source == .accessibilityEmptyTextControl ? 0.7 : 0.9,
-                status: source == .accessibilityEmptyTextControl
-                    ? "located-accessibility-empty-control"
-                    : "located-accessibility"
+                target: target,
+                screens: screens
             )
         }
     }
@@ -196,5 +199,48 @@ final class CaretLocator {
             location: location
         )
         return location
+    }
+
+    private func publishAccessibilityLocation(
+        bounds: CGRect,
+        source: CaretSource,
+        target: CaretTarget,
+        screens: [PaletteScreenGeometry],
+        status: String? = nil
+    ) -> CaretLocation? {
+        guard let globalRect = GlobalCaretGeometry.validated(
+            bounds,
+            displayBounds: screens.map(\.cgDisplayBounds)
+        ) else {
+            diagnosticState.record(
+                status: "invalid-accessibility-geometry",
+                processIdentifier: target.processIdentifier,
+                location: nil
+            )
+            return nil
+        }
+        return publishLocation(
+            globalRect: globalRect,
+            target: target,
+            source: source,
+            confidence: source == .accessibilityEmptyTextControl ? 0.7 : 0.9,
+            status: status ?? (source == .accessibilityEmptyTextControl
+                ? "located-accessibility-empty-control"
+                : "located-accessibility")
+        )
+    }
+
+    private static func isInsideFocusedElement(_ caret: CGRect, frame: CGRect) -> Bool {
+        guard frame.origin.x.isFinite,
+              frame.origin.y.isFinite,
+              frame.size.width.isFinite,
+              frame.size.height.isFinite,
+              frame.width >= 8,
+              frame.height >= 8 else {
+            return true
+        }
+        return frame.insetBy(dx: -2, dy: -2).contains(
+            CGPoint(x: caret.midX, y: caret.midY)
+        )
     }
 }

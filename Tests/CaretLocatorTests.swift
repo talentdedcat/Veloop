@@ -3,6 +3,57 @@ import XCTest
 @testable import VeloopCore
 
 final class CaretLocatorTests: XCTestCase {
+    func testStalePaletteRectangleOutsideFocusedElementUsesAccessibilityCaret() throws {
+        let query = PaletteQueryStub(response: PaletteCaretResponse(
+            appKitRect: CGRect(x: 100, y: 100, width: 1, height: 16),
+            source: .paletteLineRectangle,
+            processIdentifier: 42
+        ))
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 700, y: 410, width: 1, height: 18),
+            focusedElementFrame: CGRect(x: 600, y: 390, width: 300, height: 50)
+        ))
+        let locator = CaretLocator(
+            query: query,
+            accessibilityQuery: accessibility,
+            targetProvider: {
+                CaretTarget(processIdentifier: 42, bundleIdentifier: "com.example.browser")
+            },
+            screensProvider: { [Self.screen] }
+        )
+
+        let location = try XCTUnwrap(locator.currentCaretLocation())
+
+        XCTAssertEqual(location.globalRect, CGRect(x: 700, y: 410, width: 1, height: 18))
+        XCTAssertEqual(location.source, .accessibilityFocusedElement)
+        XCTAssertEqual(locator.diagnosticReport().status, "located-accessibility-stale-palette")
+    }
+
+    func testPaletteRectangleInsideFocusedElementRetainsPriority() throws {
+        let query = PaletteQueryStub(response: PaletteCaretResponse(
+            appKitRect: CGRect(x: 320, y: 240, width: 1, height: 18),
+            source: .paletteLineRectangle,
+            processIdentifier: 42
+        ))
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 321, y: 642, width: 1, height: 18),
+            focusedElementFrame: CGRect(x: 300, y: 620, width: 500, height: 50)
+        ))
+        let locator = CaretLocator(
+            query: query,
+            accessibilityQuery: accessibility,
+            targetProvider: {
+                CaretTarget(processIdentifier: 42, bundleIdentifier: "com.example.browser")
+            },
+            screensProvider: { [Self.screen] }
+        )
+
+        let location = try XCTUnwrap(locator.currentCaretLocation())
+
+        XCTAssertEqual(location.globalRect, CGRect(x: 320, y: 642, width: 1, height: 18))
+        XCTAssertEqual(location.source, .paletteLineRectangle)
+    }
+
     func testPaletteLineRectangleBecomesCaretLocation() throws {
         let response = PaletteCaretResponse(
             appKitRect: CGRect(x: 320, y: 240, width: 1, height: 18),
@@ -40,7 +91,10 @@ final class CaretLocatorTests: XCTestCase {
             processIdentifier: 42,
             bundleIdentifier: "com.example.editor"
         )])
-        XCTAssertTrue(accessibility.requests.isEmpty)
+        XCTAssertEqual(accessibility.requests, [CaretTarget(
+            processIdentifier: 42,
+            bundleIdentifier: "com.example.editor"
+        )])
     }
 
     func testEachRequestQueriesTheCurrentTargetExactlyOnce() {
