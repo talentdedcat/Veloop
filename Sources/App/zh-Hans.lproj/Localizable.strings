@@ -38,3 +38,17 @@
 "error.invalidLimit" = "每个上限都必须输入正整数。";
 "setup.error.title" = "Veloop 无法完成设置";
 "setup.error.message" = "请将 Veloop.app 移到“应用程序”文件夹，然后重新打开。";
+"update.section.title" = "软件更新";
+"update.currentVersion" = "Veloop %@";
+"update.check" = "检查更新";
+"update.status.idle" = "每天自动检查更新";
+"update.status.checking" = "正在检查…";
+"update.status.upToDate" = "Veloop 已是最新版本";
+"update.status.available" = "有新版本可用";
+"update.status.failed" = "暂时无法检查更新";
+"update.window.title" = "软件更新";
+"update.window.heading" = "Veloop %@ 版本可用";
+"update.action.skip" = "跳过此版本";
+"update.action.remindLater" = "稍后提醒";
+"update.action.download" = "前往下载";
+"update.error.openDownload" = "无法打开下载页面。";

@@ -2,7 +2,7 @@ import AppKit
 import VeloopCore
 
 final class ControlWindowController: NSWindowController {
-    static let contentSize = NSSize(width: 680, height: 460)
+    static let contentSize = NSSize(width: 680, height: 523)
 
     private let localization: LocalizationController
 
@@ -10,6 +10,7 @@ final class ControlWindowController: NSWindowController {
         localization: LocalizationController,
         model: ControlViewModel,
         registrationController: AgentRegistrationController,
+        updateCoordinator: UpdateCoordinator,
         trashCleanupStore: TrashCleanupPreferenceStore = TrashCleanupPreferenceStore()
     ) {
         self.localization = localization
@@ -25,6 +26,7 @@ final class ControlWindowController: NSWindowController {
             localization: localization,
             model: model,
             registrationController: registrationController,
+            updateCoordinator: updateCoordinator,
             trashCleanupStore: trashCleanupStore
         )
 

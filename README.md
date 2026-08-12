@@ -98,6 +98,18 @@ Veloop clears its stale permission records before starting that update.
 
 Veloop does not upload clipboard data or download remote clipboard URLs.
 
+## Updates
+
+Veloop checks its GitHub Releases for updates after launch, at most once every
+24 hours. The **Software Update** section can check manually at any time. When a
+new version is available, Veloop shows the changes in the selected app language
+and offers to skip it, remind you again after 24 hours, or open its GitHub
+download page. Veloop never downloads or installs an update automatically.
+
+The update check only requests the public `update.json` release asset. It sends
+no clipboard content, history, settings, permission state, device identifier,
+or analytics.
+
 ## Uninstall
 
 When `Veloop.app` is moved to Trash, the selected **When moved to Trash** policy

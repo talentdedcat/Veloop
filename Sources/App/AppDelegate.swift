@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let localizationController = LocalizationController()
     private var controlWindowController: ControlWindowController?
     private var viewModel: ControlViewModel?
+    private var updateCoordinator: UpdateCoordinator?
     private var permissionRefreshTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -88,16 +89,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             agent: agent,
             lifecycle: agentRegistrationController
         )
+        let currentVersion: NumericVersion
+        do {
+            currentVersion = try NumericVersion(AppConstants.version)
+        } catch {
+            Self.setupLogger.error("Invalid application version")
+            NSApplication.shared.terminate(nil)
+            return
+        }
+        let updatePreferences = UpdatePreferenceStore()
+        let updateCoordinator = UpdateCoordinator(
+            checker: UpdateChecker(
+                currentVersion: currentVersion,
+                preferences: updatePreferences
+            ),
+            preferences: updatePreferences,
+            localization: localizationController
+        )
         let controller = ControlWindowController(
             localization: localizationController,
             model: viewModel,
-            registrationController: agentRegistrationController
+            registrationController: agentRegistrationController,
+            updateCoordinator: updateCoordinator
         )
         viewModel.prepareForLaunchSynchronization()
         controller.showWindow(nil)
         self.viewModel = viewModel
+        self.updateCoordinator = updateCoordinator
         controlWindowController = controller
         Task { await viewModel.synchronizeOnLaunch() }
+        updateCoordinator.checkAutomatically()
         NSApplication.shared.activate(ignoringOtherApps: true)
     }
 

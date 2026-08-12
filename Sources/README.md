@@ -6,8 +6,8 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 
 | Module | Responsibility |
 | --- | --- |
-| `Sources/App/` | Control UI plus the `--agent` entry mode, AppKit settings, localization, permission presentation, and Palette/watcher installation. |
-| `Sources/Core/` | Shared static Swift module for clipboard capture, history, configuration, global input, Focus Stack presentation, storage, local IPC, and system wrappers. |
+| `Sources/App/` | Control UI plus the `--agent` entry mode, AppKit settings and update presentation, localization, permission presentation, and Palette/watcher installation. |
+| `Sources/Core/` | Shared static Swift module for clipboard capture, history, configuration, global input, Focus Stack presentation, storage, local IPC, update policy, and system wrappers. |
 | `Sources/Palette/` | Minimal InputMethodKit bridge that retains the active `IMKTextInput` session and answers bounded local caret queries. |
 | `Sources/UninstallWatcher/` | Plain event-driven process that detects removal of the canonical installed app and invokes exact cleanup. |
 | `Sources/Veloopctl/` | Thin executable entry point for the local `veloopctl` command surface. |
@@ -30,6 +30,7 @@ This guide maps Veloop's runtime ownership and the boundaries that keep clipboar
 | `Core/Storage/` | Atomic manifests, content-addressed blobs, and file snapshots. |
 | `Core/Support/` | Constants, launch modes, logging, hashing, locking, and system wrappers. |
 | `Core/Uninstall/` | Trash policy, uninstall watcher support, TCC reset, and exact cleanup. |
+| `Core/Update/` | Numeric version comparison, bounded release metadata, 24-hour policy, and asynchronous GitHub checking. |
 
 Repository-level release support lives in `Configuration/` for bundle metadata, `Packaging/` for release and DMG scripts, `Casks/` for Homebrew installation, `Tests/` for contracts, and `Docs/` for localized product documentation and media.
 
@@ -61,6 +62,7 @@ The same signed `Veloop` executable runs in `--agent` mode under the single `com
 - **Capture and storage:** materialize data before committing a manifest, use atomic writes, and keep large-file copying and hashing off latency-sensitive paths.
 - **Local IPC:** the control app and CLI communicate with the Agent through bounded requests over a mode-`0600` Unix-domain socket. Runtime components do not listen on TCP.
 - **System integration:** keep permission checks, input-source activation, process locking, logging, and other system APIs behind their existing wrappers.
+- **Software update:** fetch only the bounded public `update.json` Release asset from the control app. Keep update checks outside the Agent, input, clipboard, and overlay paths; never download or install releases automatically.
 
 ## Privacy and reliability invariants
 
@@ -84,5 +86,6 @@ The same signed `Veloop` executable runs in `--agent` mode under the single `com
 | Caret geometry and validation | `Tests/CaretLocatorTests.swift` |
 | Native Palette source contract | `Tests/CaretSourceContractTests.swift` and `Tests/PaletteInputSourceActivatorTests.swift` |
 | App, Agent, CLI, Universal binary, and release packaging contracts | `Tests/PackagingContractTests.swift` |
+| Update metadata, scheduling, and UI boundaries | `Tests/UpdateManifestTests.swift`, `Tests/UpdateCheckerTests.swift`, and `Tests/SoftwareUpdateUISourceContractTests.swift` |
 
 Changes should preserve these contracts and keep system-facing behavior inside the module that already owns it.

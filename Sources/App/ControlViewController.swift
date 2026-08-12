@@ -6,6 +6,7 @@ final class ControlViewController: NSViewController {
     private let localization: LocalizationController
     private let model: ControlViewModel
     private let registrationController: AgentRegistrationController
+    private let updateCoordinator: UpdateCoordinator
     private let trashCleanupStore: TrashCleanupPreferenceStore
 
     private let statusLabel = NSTextField(labelWithString: "")
@@ -40,6 +41,10 @@ final class ControlViewController: NSViewController {
     private let permissionsTitle = NSTextField(labelWithString: "")
     private let accessibilityPermissionLabel = NSTextField(labelWithString: "")
     private let languageLabel = NSTextField(labelWithString: "")
+    private let softwareUpdateTitle = NSTextField(labelWithString: "")
+    private let softwareUpdateVersionLabel = NSTextField(labelWithString: "")
+    private let softwareUpdateStatusLabel = NSTextField(labelWithString: "")
+    private let checkForUpdatesButton = NSButton()
     private var localErrorKey: String?
     private var startAtLoginRevision: UInt64 = 0
 
@@ -47,11 +52,13 @@ final class ControlViewController: NSViewController {
         localization: LocalizationController,
         model: ControlViewModel,
         registrationController: AgentRegistrationController,
+        updateCoordinator: UpdateCoordinator,
         trashCleanupStore: TrashCleanupPreferenceStore
     ) {
         self.localization = localization
         self.model = model
         self.registrationController = registrationController
+        self.updateCoordinator = updateCoordinator
         self.trashCleanupStore = trashCleanupStore
         super.init(nibName: nil, bundle: nil)
         preferredContentSize = ControlWindowController.contentSize
@@ -72,6 +79,7 @@ final class ControlViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         model.onChange = { [weak self] in self?.render() }
+        updateCoordinator.onChange = { [weak self] in self?.renderSoftwareUpdate() }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(languageDidChange),
@@ -169,6 +177,20 @@ final class ControlViewController: NSViewController {
         append(accessibilityRow)
         append(separator())
 
+        configureSectionTitle(softwareUpdateTitle)
+        constrainHeight(softwareUpdateTitle, 20)
+        append(softwareUpdateTitle)
+        softwareUpdateStatusLabel.textColor = .secondaryLabelColor
+        let softwareUpdateRow = row([
+            softwareUpdateVersionLabel,
+            flexibleSpace(),
+            softwareUpdateStatusLabel,
+            checkForUpdatesButton,
+        ], spacing: 10)
+        constrainHeight(softwareUpdateRow, 42)
+        append(softwareUpdateRow)
+        append(separator())
+
         languagePopup.widthAnchor.constraint(equalToConstant: 142).isActive = true
         let footer = row([
             languageLabel, languagePopup, flexibleSpace(), openDataButton, clearButton,
@@ -205,12 +227,14 @@ final class ControlViewController: NSViewController {
         openDataButton.action = #selector(openDataFolder)
         clearButton.target = self
         clearButton.action = #selector(confirmClearHistory)
+        checkForUpdatesButton.target = self
+        checkForUpdatesButton.action = #selector(checkForUpdates)
 
         NSLayoutConstraint.activate([
             outer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             outer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             outer.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            outer.heightAnchor.constraint(equalToConstant: 408),
+            outer.heightAnchor.constraint(equalToConstant: 471),
         ])
     }
 
@@ -231,10 +255,16 @@ final class ControlViewController: NSViewController {
         storageStepper.setAccessibilityLabel(storageLimitLabel.stringValue)
         permissionsTitle.stringValue = localization.string("permissions.title")
         accessibilityPermissionLabel.stringValue = localization.string("permissions.accessibility")
+        softwareUpdateTitle.stringValue = localization.string("update.section.title")
+        softwareUpdateVersionLabel.stringValue = localization.string(
+            "update.currentVersion",
+            AppConstants.version
+        )
         languageLabel.stringValue = localization.string("language.label")
         configureButton(accessibilitySettingsButton, titleKey: "action.openSettings", symbol: "gearshape")
         configureButton(openDataButton, titleKey: "action.openData", symbol: "folder")
         configureButton(clearButton, titleKey: "action.clearHistory", symbol: "trash")
+        configureButton(checkForUpdatesButton, titleKey: "update.check", symbol: "arrow.clockwise")
         rebuildLanguageMenu()
         render()
     }
@@ -292,9 +322,28 @@ final class ControlViewController: NSViewController {
         storageStepper.isEnabled = controlsEnabled
         clearButton.isEnabled = controlsEnabled && (state?.historyCount ?? 0) > 0
         accessibilitySettingsButton.isEnabled = true
+        renderSoftwareUpdate()
 
         let errorKey = localErrorKey ?? model.inlineError.map(errorKey(for:))
         errorLabel.stringValue = errorKey.map(localization.string) ?? ""
+    }
+
+    private func renderSoftwareUpdate() {
+        let key: String
+        switch updateCoordinator.status {
+        case .idle:
+            key = "update.status.idle"
+        case .checking:
+            key = "update.status.checking"
+        case .upToDate:
+            key = "update.status.upToDate"
+        case .available:
+            key = "update.status.available"
+        case .failed:
+            key = "update.status.failed"
+        }
+        softwareUpdateStatusLabel.stringValue = localization.string(key)
+        checkForUpdatesButton.isEnabled = updateCoordinator.status != .checking
     }
 
     private func rebuildLanguageMenu() {
@@ -414,6 +463,10 @@ final class ControlViewController: NSViewController {
 
     @objc private func openAccessibilitySettings() {
         openSystemSettings("Privacy_Accessibility")
+    }
+
+    @objc private func checkForUpdates() {
+        updateCoordinator.checkManually()
     }
 
     private func openSystemSettings(_ pane: String) {

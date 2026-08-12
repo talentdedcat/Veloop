@@ -124,8 +124,8 @@ final class PermissionUISourceContractTests: XCTestCase {
         let controller = try text("Sources/App/ControlViewController.swift")
         let window = try text("Sources/App/ControlWindowController.swift")
 
-        XCTAssertTrue(controller.contains("outer.heightAnchor.constraint(equalToConstant: 408)"))
-        XCTAssertTrue(window.contains("NSSize(width: 680, height: 460)"))
+        XCTAssertTrue(controller.contains("outer.heightAnchor.constraint(equalToConstant: 471)"))
+        XCTAssertTrue(window.contains("NSSize(width: 680, height: 523)"))
     }
 
     private var repositoryRoot: URL {

@@ -38,3 +38,17 @@
 "error.invalidLimit" = "Enter a positive whole number for each limit.";
 "setup.error.title" = "Veloop could not finish setup";
 "setup.error.message" = "Move Veloop.app to Applications, then open it again.";
+"update.section.title" = "Software Update";
+"update.currentVersion" = "Veloop %@";
+"update.check" = "Check for Updates";
+"update.status.idle" = "Updates are checked daily";
+"update.status.checking" = "Checking…";
+"update.status.upToDate" = "Veloop is up to date";
+"update.status.available" = "An update is available";
+"update.status.failed" = "Unable to check for updates";
+"update.window.title" = "Software Update";
+"update.window.heading" = "Veloop %@ is available";
+"update.action.skip" = "Skip This Version";
+"update.action.remindLater" = "Remind Me Later";
+"update.action.download" = "Go to Download";
+"update.error.openDownload" = "The download page could not be opened.";
