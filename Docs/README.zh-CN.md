@@ -6,7 +6,7 @@
     <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Universal arm64 与 x86_64" src="https://img.shields.io/badge/Universal-arm64_%2B_x86__64-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-f05237?style=flat&logo=swift&logoColor=white">
-    <img alt="版本 v0.2.1" src="https://img.shields.io/badge/release-v0.2.1-1683c7?style=flat">
+    <img alt="版本 v0.2.2" src="https://img.shields.io/badge/release-v0.2.2-1683c7?style=flat">
     <img alt="MIT 许可证" src="https://img.shields.io/badge/license-MIT-5b9d2f?style=flat">
   </p>
   <p><a href="../README.md">English</a> · 简体中文</p>
@@ -40,11 +40,11 @@ brew install --cask Veloop
 
 ### DMG
 
-[下载 `Veloop-0.2.1-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.2.1/Veloop-0.2.1-universal.dmg)，
+[下载 `Veloop-0.2.2-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.2.2/Veloop-0.2.2-universal.dmg)，
 打开后将 `Veloop.app` 拖入“应用程序”。
 
 > [!IMPORTANT]
-> v0.2.1 使用 ad-hoc 签名，尚未经过 Apple 公证。请只对从本仓库安装的
+> v0.2.2 使用 ad-hoc 签名，尚未经过 Apple 公证。请只对从本仓库安装的
 > Veloop 解除隔离，然后启动：
 >
 > ```bash
