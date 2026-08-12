@@ -7,12 +7,12 @@ protocol AccessibilityCaretQuerying: AnyObject {
 
 final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
     private let isTrusted: () -> Bool
-    private let readFocusedElement: () -> FocusedAccessibilityReadResult
+    private let readFocusedElement: (pid_t) -> FocusedAccessibilityReadResult
 
     init(
         isTrusted: @escaping () -> Bool = { AXIsProcessTrusted() },
-        readFocusedElement: @escaping () -> FocusedAccessibilityReadResult = {
-            FocusedAccessibilityCaretClient.readSystemFocusedElement()
+        readFocusedElement: @escaping (pid_t) -> FocusedAccessibilityReadResult = {
+            FocusedAccessibilityCaretClient.readFocusedElement(processIdentifier: $0)
         }
     ) {
         self.isTrusted = isTrusted
@@ -23,26 +23,43 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
         guard isTrusted() else { return .failed(.untrusted) }
         guard case let .element(
             processIdentifier,
+            role,
+            valueIsEmpty,
+            frame,
             textMarkerBounds,
             selectedRange,
             boundsForRange
-        ) = readFocusedElement() else {
+        ) = readFocusedElement(target.processIdentifier) else {
             return .failed(.missingFocusedElement)
         }
         guard processIdentifier == target.processIdentifier else {
             return .failed(.processMismatch)
         }
-        if let textMarkerBounds, Self.isCaretShaped(textMarkerBounds) {
-            return .located(textMarkerBounds)
-        }
         guard let selectedRange else { return .failed(.missingSelection) }
         guard selectedRange.length == 0 else {
             return .failed(.selectionNotCollapsed)
         }
-        guard let bounds = boundsForRange(selectedRange) else {
-            return .failed(.missingBounds)
+
+        if let textMarkerBounds,
+           Self.isUsableCaret(textMarkerBounds, inside: frame) {
+            return .located(textMarkerBounds)
         }
-        return .located(bounds)
+        if let bounds = boundsForRange(selectedRange),
+           Self.isUsableCaret(bounds, inside: frame) {
+            return .located(bounds)
+        }
+        if let estimatedBounds = Self.emptyTextControlCaret(
+            role: role,
+            valueIsEmpty: valueIsEmpty,
+            selectedRange: selectedRange,
+            frame: frame
+        ) {
+            return .located(
+                estimatedBounds,
+                source: .accessibilityEmptyTextControl
+            )
+        }
+        return .failed(.missingBounds)
     }
 
     private static func isCaretShaped(_ bounds: CGRect) -> Bool {
@@ -56,10 +73,66 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
             && bounds.height <= 160
     }
 
-    private static func readSystemFocusedElement() -> FocusedAccessibilityReadResult {
+    private static func isUsableCaret(_ bounds: CGRect, inside frame: CGRect?) -> Bool {
+        guard isCaretShaped(bounds) else { return false }
+        guard let frame else { return true }
+        guard isUsableControlFrame(frame) else { return false }
+        let normalized = CGRect(
+            x: bounds.minX,
+            y: bounds.minY,
+            width: max(bounds.width, 1),
+            height: bounds.height
+        )
+        return frame.insetBy(dx: -1, dy: -1).contains(
+            CGPoint(x: normalized.midX, y: normalized.midY)
+        )
+    }
+
+    private static func emptyTextControlCaret(
+        role: String?,
+        valueIsEmpty: Bool?,
+        selectedRange: CFRange,
+        frame: CGRect?
+    ) -> CGRect? {
+        guard valueIsEmpty == true,
+              selectedRange.location == 0,
+              let role,
+              role == kAXTextFieldRole as String || role == kAXTextAreaRole as String,
+              let frame,
+              isUsableControlFrame(frame) else {
+            return nil
+        }
+
+        let inset = min(max(frame.height * 0.2, 6), 14)
+        let height = min(max(frame.height * 0.4, 14), 24)
+        let y = role == kAXTextAreaRole as String
+            ? frame.minY + inset
+            : frame.midY - height / 2
+        return CGRect(
+            x: frame.minX + inset,
+            y: y,
+            width: 1,
+            height: height
+        )
+    }
+
+    private static func isUsableControlFrame(_ frame: CGRect) -> Bool {
+        frame.origin.x.isFinite
+            && frame.origin.y.isFinite
+            && frame.size.width.isFinite
+            && frame.size.height.isFinite
+            && frame.width >= 8
+            && frame.height >= 8
+    }
+
+    private static func readFocusedElement(
+        processIdentifier: pid_t
+    ) -> FocusedAccessibilityReadResult {
+        let application = AXUIElementCreateApplication(processIdentifier)
+        AXUIElementSetMessagingTimeout(application, 0.1)
         var focusedValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(
-            AXUIElementCreateSystemWide(),
+            application,
             kAXFocusedUIElementAttribute as CFString,
             &focusedValue
         ) == .success,
@@ -71,6 +144,64 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
 
         var processIdentifier: pid_t = 0
         _ = AXUIElementGetPid(focused, &processIdentifier)
+
+        var roleValue: CFTypeRef?
+        let role: String? = if AXUIElementCopyAttributeValue(
+            focused,
+            kAXRoleAttribute as CFString,
+            &roleValue
+        ) == .success {
+            roleValue as? String
+        } else {
+            nil
+        }
+
+        var value: CFTypeRef?
+        let valueIsEmpty: Bool? = if AXUIElementCopyAttributeValue(
+            focused,
+            kAXValueAttribute as CFString,
+            &value
+        ) == .success,
+        let text = value as? String {
+            text.isEmpty
+        } else {
+            nil
+        }
+
+        var position: CGPoint?
+        var positionValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            focused,
+            kAXPositionAttribute as CFString,
+            &positionValue
+        ) == .success,
+        let positionValue,
+        CFGetTypeID(positionValue) == AXValueGetTypeID() {
+            let positionAXValue = unsafeBitCast(positionValue, to: AXValue.self)
+            var decodedPosition = CGPoint.zero
+            if AXValueGetValue(positionAXValue, .cgPoint, &decodedPosition) {
+                position = decodedPosition
+            }
+        }
+
+        var size: CGSize?
+        var sizeValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            focused,
+            kAXSizeAttribute as CFString,
+            &sizeValue
+        ) == .success,
+        let sizeValue,
+        CFGetTypeID(sizeValue) == AXValueGetTypeID() {
+            let sizeAXValue = unsafeBitCast(sizeValue, to: AXValue.self)
+            var decodedSize = CGSize.zero
+            if AXValueGetValue(sizeAXValue, .cgSize, &decodedSize) {
+                size = decodedSize
+            }
+        }
+        let frame = position.flatMap { position in
+            size.map { CGRect(origin: position, size: $0) }
+        }
 
         var textMarkerBounds: CGRect?
         var markerRangeValue: CFTypeRef?
@@ -115,6 +246,9 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
 
         return .element(
             processIdentifier: processIdentifier,
+            role: role,
+            valueIsEmpty: valueIsEmpty,
+            frame: frame,
             textMarkerBounds: textMarkerBounds,
             selectedRange: selectedRange,
             boundsForRange: { range in

@@ -222,6 +222,26 @@ final class CaretLocatorTests: XCTestCase {
         XCTAssertEqual(locator.diagnosticReport().status, "located-accessibility")
     }
 
+    func testEstimatedEmptyControlCaretUsesDistinctSourceAndConfidence() throws {
+        let accessibility = AccessibilityQueryStub(result: .located(
+            CGRect(x: 220, y: 228, width: 1, height: 21),
+            source: .accessibilityEmptyTextControl
+        ))
+        let locator = CaretLocator(
+            query: PaletteQueryStub(response: nil),
+            accessibilityQuery: accessibility,
+            targetProvider: {
+                CaretTarget(processIdentifier: 7, bundleIdentifier: "com.example.browser")
+            },
+            screensProvider: { [Self.screen] }
+        )
+
+        let location = try XCTUnwrap(locator.currentCaretLocation())
+        XCTAssertEqual(location.source, .accessibilityEmptyTextControl)
+        XCTAssertEqual(location.confidence, 0.7)
+        XCTAssertEqual(locator.diagnosticReport().status, "located-accessibility-empty-control")
+    }
+
     func testInvalidPaletteGeometryFallsBackToAccessibility() throws {
         let query = PaletteQueryStub(response: PaletteCaretResponse(
             appKitRect: CGRect(x: 5_000, y: 5_000, width: 1, height: 16),

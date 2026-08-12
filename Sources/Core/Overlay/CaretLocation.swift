@@ -5,6 +5,7 @@ public enum CaretSource: String, Sendable, Equatable, CaseIterable {
     case paletteLineRectangle
     case paletteRangeRectangle
     case accessibilityFocusedElement
+    case accessibilityEmptyTextControl
 }
 
 public struct CaretLocation: Sendable, Equatable {
@@ -56,13 +57,19 @@ enum AccessibilityCaretFailure: String, Equatable, Sendable {
 }
 
 enum AccessibilityCaretQueryResult: Equatable, Sendable {
-    case located(CGRect)
+    case located(
+        CGRect,
+        source: CaretSource = .accessibilityFocusedElement
+    )
     case failed(AccessibilityCaretFailure)
 }
 
 enum FocusedAccessibilityReadResult {
     case element(
         processIdentifier: pid_t,
+        role: String? = nil,
+        valueIsEmpty: Bool? = nil,
+        frame: CGRect? = nil,
         textMarkerBounds: CGRect?,
         selectedRange: CFRange?,
         boundsForRange: (CFRange) -> CGRect?

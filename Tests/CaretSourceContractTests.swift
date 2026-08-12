@@ -10,14 +10,20 @@ final class CaretSourceContractTests: XCTestCase {
             "CFMessagePortSendRequest",
             "paletteLineRectangle",
             "paletteRangeRectangle",
-            "AXUIElementCreateSystemWide",
+            "AXUIElementCreateApplication",
+            "AXUIElementSetMessagingTimeout",
             "kAXFocusedUIElementAttribute",
             "AXUIElementGetPid",
             "kAXSelectedTextRangeAttribute",
             "kAXSelectedTextMarkerRangeAttribute",
+            "kAXRoleAttribute",
+            "kAXValueAttribute",
+            "kAXPositionAttribute",
+            "kAXSizeAttribute",
             "kAXBoundsForRangeParameterizedAttribute",
             "kAXBoundsForTextMarkerRangeParameterizedAttribute",
             "accessibilityFocusedElement",
+            "accessibilityEmptyTextControl",
             "currentCaretLocation()",
         ] {
             XCTAssertTrue(source.contains(required), "missing caret contract: \(required)")
@@ -36,6 +42,7 @@ final class CaretSourceContractTests: XCTestCase {
             "controlFrameEstimate",
             "scheduleRetry",
             "pollInterval",
+            "AXUIElementCreateSystemWide",
         ] {
             XCTAssertFalse(source.contains(forbidden), "broad caret fallback remains: \(forbidden)")
         }

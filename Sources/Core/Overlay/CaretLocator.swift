@@ -57,7 +57,8 @@ final class PaletteCaretClient: PaletteCaretQuerying {
               let width = response["width"] as? NSNumber,
               let height = response["height"] as? NSNumber,
               let sourceValue = response["source"] as? String,
-              let source = CaretSource(rawValue: sourceValue) else {
+              let source = CaretSource(rawValue: sourceValue),
+              source == .paletteLineRectangle || source == .paletteRangeRectangle else {
             return nil
         }
 
@@ -145,7 +146,7 @@ final class CaretLocator {
                 location: nil
             )
             return nil
-        case let .located(bounds):
+        case let .located(bounds, source):
             guard let globalRect = GlobalCaretGeometry.validated(
                 bounds,
                 displayBounds: screens.map(\.cgDisplayBounds)
@@ -160,9 +161,11 @@ final class CaretLocator {
             return publishLocation(
                 globalRect: globalRect,
                 target: target,
-                source: .accessibilityFocusedElement,
-                confidence: 0.9,
-                status: "located-accessibility"
+                source: source,
+                confidence: source == .accessibilityEmptyTextControl ? 0.7 : 0.9,
+                status: source == .accessibilityEmptyTextControl
+                    ? "located-accessibility-empty-control"
+                    : "located-accessibility"
             )
         }
     }
