@@ -63,6 +63,7 @@ enum AccessibilityCaretQueryResult: Equatable, Sendable {
 enum FocusedAccessibilityReadResult {
     case element(
         processIdentifier: pid_t,
+        textMarkerBounds: CGRect?,
         selectedRange: CFRange?,
         boundsForRange: (CFRange) -> CGRect?
     )

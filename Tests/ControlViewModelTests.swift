@@ -39,8 +39,8 @@ final class ControlViewModelTests: XCTestCase {
         XCTAssertEqual(lifecycle.restartCallCount, 0)
 
         await model.applicationDidBecomeActive()
-        XCTAssertEqual(agent.stateCallCount, 3)
-        XCTAssertEqual(lifecycle.restartCallCount, 1)
+        XCTAssertEqual(agent.stateCallCount, 2)
+        XCTAssertEqual(lifecycle.restartCallCount, 0)
     }
 
     @MainActor

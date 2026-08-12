@@ -14,7 +14,9 @@ final class CaretSourceContractTests: XCTestCase {
             "kAXFocusedUIElementAttribute",
             "AXUIElementGetPid",
             "kAXSelectedTextRangeAttribute",
+            "kAXSelectedTextMarkerRangeAttribute",
             "kAXBoundsForRangeParameterizedAttribute",
+            "kAXBoundsForTextMarkerRangeParameterizedAttribute",
             "accessibilityFocusedElement",
             "currentCaretLocation()",
         ] {
@@ -30,7 +32,6 @@ final class CaretSourceContractTests: XCTestCase {
             "recentMouseClick",
             "lastClickLocation",
             "composedCharacter",
-            "textMarker",
             "descendantTextElement",
             "controlFrameEstimate",
             "scheduleRetry",
@@ -90,6 +91,17 @@ final class CaretSourceContractTests: XCTestCase {
         ] {
             XCTAssertFalse(source.contains(forbidden), "helper must stay additive: \(forbidden)")
         }
+    }
+
+    func testPaletteCharacterAttributesCannotBlockCollapsedRangeCaretQuery() throws {
+        let source = try text("Sources/Palette/main.m")
+        let method = try bracedBody(after: "- (NSDictionary *)caretResponseForBundle:", in: source)
+        let lineQuery = try XCTUnwrap(method.range(of: "attributesForCharacterIndex:"))
+        let firstCatch = try XCTUnwrap(method.range(of: "@catch", range: lineQuery.upperBound..<method.endIndex))
+        let rangeQuery = try XCTUnwrap(method.range(of: "firstRectForCharacterRange:"))
+
+        XCTAssertLessThan(lineQuery.lowerBound, firstCatch.lowerBound)
+        XCTAssertLessThan(firstCatch.lowerBound, rangeQuery.lowerBound)
     }
 
     func testPaletteIPCValidatesIdentityAndBoundsPayloads() throws {
@@ -158,5 +170,25 @@ final class CaretSourceContractTests: XCTestCase {
 
     private func text(_ relativePath: String) throws -> String {
         try String(contentsOf: repositoryRoot.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+
+    private func bracedBody(after marker: String, in source: String) throws -> Substring {
+        let markerRange = try XCTUnwrap(source.range(of: marker))
+        let opening = try XCTUnwrap(source[markerRange.upperBound...].firstIndex(of: "{"))
+        var depth = 0
+        var cursor = opening
+        while cursor < source.endIndex {
+            switch source[cursor] {
+            case "{": depth += 1
+            case "}":
+                depth -= 1
+                if depth == 0 {
+                    return source[opening...cursor]
+                }
+            default: break
+            }
+            cursor = source.index(after: cursor)
+        }
+        throw CocoaError(.fileReadCorruptFile)
     }
 }

@@ -26,9 +26,9 @@ final class InputSubsystemCoordinator {
         self.deactivatePalette = deactivatePalette
     }
 
-    func synchronize(enabled: Bool, listenEvents: Bool) {
+    func synchronize(enabled: Bool, accessibility: Bool) {
         precondition(Thread.isMainThread)
-        guard enabled && listenEvents else {
+        guard enabled && accessibility else {
             transitionToStopped()
             return
         }
@@ -44,6 +44,15 @@ final class InputSubsystemCoordinator {
     func stop() {
         precondition(Thread.isMainThread)
         transitionToStopped()
+    }
+
+    func listenerStoppedUnexpectedly() {
+        precondition(Thread.isMainThread)
+        guard state == .running else { return }
+        activationTask?.cancel()
+        activationTask = nil
+        deactivatePalette()
+        state = .stopped
     }
 
     private func transitionToStopped() {

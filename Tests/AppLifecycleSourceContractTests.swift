@@ -21,7 +21,10 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertFalse(activation.contains("synchronizeOnLaunch"))
         XCTAssertTrue(delegate.contains("NSWorkspace.didActivateApplicationNotification"))
         XCTAssertTrue(delegate.contains("com.apple.systempreferences"))
-        XCTAssertTrue(delegate.contains("forcePermissionRefresh:"))
+        XCTAssertTrue(delegate.contains("startPermissionRefreshMonitoring()"))
+        XCTAssertTrue(delegate.contains("stopPermissionRefreshMonitoring()"))
+        XCTAssertTrue(delegate.contains("await viewModel.refreshPermissionStatus()"))
+        XCTAssertFalse(delegate.contains("forcePermissionRefresh:"))
         XCTAssertFalse(activation.contains("ensurePaletteInstalled()"))
     }
 
@@ -49,7 +52,7 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertTrue(palette.contains("stringByAppendingPathComponent:@\"UninstallWatcher\""))
     }
 
-    func testModelQueriesFirstThenRecoversExactlyOnceWithoutPolling() throws {
+    func testModelQueriesFirstThenRecoversAgentAvailabilityExactlyOnce() throws {
         let model = try text("Sources/Core/Control/ControlViewModel.swift")
         let synchronization = try functionBody(named: "synchronizeAllowingRecovery", in: model)
         let fastState = try XCTUnwrap(synchronization.range(of: "try agent.state()"))
@@ -66,10 +69,10 @@ final class AppLifecycleSourceContractTests: XCTestCase {
         XCTAssertFalse(model.contains("Task.sleep"))
         XCTAssertFalse(model.contains("retryPolicy"))
         XCTAssertFalse(model.contains("restartRegisteredAgent"))
-        XCTAssertTrue(model.contains("restartAgentForPermissionRefresh"))
-        XCTAssertTrue(model.contains("!permissions.canCycle"))
-        XCTAssertTrue(model.contains("if forcePermissionRefresh"))
-        XCTAssertFalse(model.contains("permissionRefreshPending"))
+        XCTAssertFalse(model.contains("restartAgentForPermissionRefresh"))
+        XCTAssertFalse(model.contains("forcePermissionRefresh"))
+        XCTAssertTrue(model.contains("refreshPermissionStatus"))
+        XCTAssertTrue(model.contains("permissionRefreshInProgress"))
         XCTAssertTrue(synchronization.contains("publishFailure(.agentUnavailable"))
         XCTAssertFalse(model.contains("convenience init(agent:"))
         XCTAssertFalse(model.contains("CompatibilityAgentLifecycle"))

@@ -23,6 +23,7 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
         guard isTrusted() else { return .failed(.untrusted) }
         guard case let .element(
             processIdentifier,
+            textMarkerBounds,
             selectedRange,
             boundsForRange
         ) = readFocusedElement() else {
@@ -30,6 +31,9 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
         }
         guard processIdentifier == target.processIdentifier else {
             return .failed(.processMismatch)
+        }
+        if let textMarkerBounds, Self.isCaretShaped(textMarkerBounds) {
+            return .located(textMarkerBounds)
         }
         guard let selectedRange else { return .failed(.missingSelection) }
         guard selectedRange.length == 0 else {
@@ -39,6 +43,17 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
             return .failed(.missingBounds)
         }
         return .located(bounds)
+    }
+
+    private static func isCaretShaped(_ bounds: CGRect) -> Bool {
+        bounds.origin.x.isFinite
+            && bounds.origin.y.isFinite
+            && bounds.size.width.isFinite
+            && bounds.size.height.isFinite
+            && bounds.width >= 0
+            && bounds.width <= 8
+            && bounds.height >= 4
+            && bounds.height <= 160
     }
 
     private static func readSystemFocusedElement() -> FocusedAccessibilityReadResult {
@@ -56,6 +71,31 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
 
         var processIdentifier: pid_t = 0
         _ = AXUIElementGetPid(focused, &processIdentifier)
+
+        var textMarkerBounds: CGRect?
+        var markerRangeValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            focused,
+            kAXSelectedTextMarkerRangeAttribute as CFString,
+            &markerRangeValue
+        ) == .success,
+        let markerRangeValue {
+            var markerBoundsValue: CFTypeRef?
+            if AXUIElementCopyParameterizedAttributeValue(
+                focused,
+                kAXBoundsForTextMarkerRangeParameterizedAttribute as CFString,
+                markerRangeValue,
+                &markerBoundsValue
+            ) == .success,
+            let markerBoundsValue,
+            CFGetTypeID(markerBoundsValue) == AXValueGetTypeID() {
+                let markerBoundsAXValue = unsafeBitCast(markerBoundsValue, to: AXValue.self)
+                var decodedBounds = CGRect.zero
+                if AXValueGetValue(markerBoundsAXValue, .cgRect, &decodedBounds) {
+                    textMarkerBounds = decodedBounds
+                }
+            }
+        }
 
         var selectedValue: CFTypeRef?
         var selectedRange: CFRange?
@@ -75,6 +115,7 @@ final class FocusedAccessibilityCaretClient: AccessibilityCaretQuerying {
 
         return .element(
             processIdentifier: processIdentifier,
+            textMarkerBounds: textMarkerBounds,
             selectedRange: selectedRange,
             boundsForRange: { range in
                 var mutableRange = range

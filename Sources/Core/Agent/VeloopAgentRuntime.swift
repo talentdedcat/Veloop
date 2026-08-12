@@ -12,6 +12,7 @@ public final class VeloopAgentRuntime {
     private let previewPreference: PreviewContentPreference
     private let caretLocator: CaretLocator
     private var inputSubsystem: InputSubsystemCoordinator!
+    private var permissionRecoveryMonitor: PermissionRecoveryMonitor!
     private let stateLock = NSLock()
     private var activeServer: AgentServer?
     private var configuration: Configuration
@@ -166,6 +167,23 @@ public final class VeloopAgentRuntime {
                 _ = PaletteInputSourceActivator.deactivate()
             }
         )
+        self.permissionRecoveryMonitor = PermissionRecoveryMonitor(
+            readStatus: { [weak permissions] in
+                permissions?.status() ?? EventPermissionStatus(
+                    listenEvents: false,
+                    postEvents: false,
+                    accessibility: false
+                )
+            },
+            onRecovered: { [weak self] status in
+                self?.synchronizeInputSubsystem(accessibility: status.accessibility)
+            }
+        )
+        eventTap.onUnexpectedStop = { [weak self] in
+            guard let self else { return }
+            self.inputSubsystem.listenerStoppedUnexpectedly()
+            self.permissionRecoveryMonitor.start()
+        }
     }
 
     public func start() throws {
@@ -192,6 +210,7 @@ public final class VeloopAgentRuntime {
             return
         }
         inputSubsystem.stop()
+        permissionRecoveryMonitor.stop()
         monitor.stop()
         activeServer?.stop()
         processLock.release()
@@ -303,7 +322,7 @@ public final class VeloopAgentRuntime {
 
     private func synchronizeInputSubsystemOnMain(_ permissionStatus: EventPermissionStatus) {
         let synchronize = { [weak self] in
-            self?.synchronizeInputSubsystem(listenEvents: permissionStatus.listenEvents)
+            self?.synchronizeInputSubsystem(accessibility: permissionStatus.accessibility)
         }
         if Thread.isMainThread {
             synchronize()
@@ -442,12 +461,18 @@ public final class VeloopAgentRuntime {
         return true
     }
 
-    private func synchronizeInputSubsystem(listenEvents: Bool? = nil) {
+    private func synchronizeInputSubsystem(accessibility: Bool? = nil) {
         precondition(Thread.isMainThread)
+        let accessibility = accessibility ?? permissions.status().accessibility
         inputSubsystem.synchronize(
             enabled: isEnabled,
-            listenEvents: listenEvents ?? permissions.status().listenEvents
+            accessibility: accessibility
         )
+        if isEnabled && !accessibility {
+            permissionRecoveryMonitor.start()
+        } else {
+            permissionRecoveryMonitor.stop()
+        }
     }
 }
 

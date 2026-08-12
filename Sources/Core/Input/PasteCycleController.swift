@@ -48,18 +48,17 @@ final class PasteCycleController {
         let shouldSuppress: Bool
 
         lock.lock()
-        switch event {
+        if state.phase == .cycling && !canContinueCycle() {
+            presentationEvent = .interrupted
+            state.resetForInterruption()
+            shouldSuppress = false
+        } else {
+            switch event {
         case .commandV:
             let wasCycling = state.phase == .cycling
             let ids: [UUID]
             if wasCycling {
                 ids = []
-                guard canContinueCycle() else {
-                    presentationEvent = .interrupted
-                    state.resetForInterruption()
-                    shouldSuppress = false
-                    break
-                }
             } else {
                 ids = historyIDs()
                 guard !ids.isEmpty, canCycle() else {
@@ -76,12 +75,6 @@ final class PasteCycleController {
             }
         case let .move(direction):
             guard state.phase == .cycling else {
-                shouldSuppress = false
-                break
-            }
-            guard canContinueCycle() else {
-                presentationEvent = .interrupted
-                state.resetForInterruption()
                 shouldSuppress = false
                 break
             }
@@ -110,6 +103,7 @@ final class PasteCycleController {
             }
         case .other:
             shouldSuppress = false
+            }
         }
         lock.unlock()
 

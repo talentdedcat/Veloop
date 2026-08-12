@@ -45,6 +45,7 @@ public final class ControlViewModel {
     private var launchSynchronizationInProgress = false
     private var suppressNextActivation = false
     private var synchronizationRevision: UInt64 = 0
+    private var permissionRefreshInProgress = false
 
     public init(
         agent: AgentControlling,
@@ -54,7 +55,7 @@ public final class ControlViewModel {
         self.lifecycle = lifecycle
     }
 
-    public func applicationDidBecomeActive(forcePermissionRefresh: Bool = false) async {
+    public func applicationDidBecomeActive() async {
         guard !Task.isCancelled else { return }
         if suppressNextActivation {
             suppressNextActivation = false
@@ -62,14 +63,7 @@ public final class ControlViewModel {
         }
         guard !launchSynchronizationPrepared else { return }
         guard !launchSynchronizationInProgress else { return }
-        if forcePermissionRefresh {
-            await restartAgentForPermissionRefresh()
-            return
-        }
         await synchronizeAllowingRecovery()
-        guard case let .available(permissions) = permissionSyncState,
-              !permissions.canCycle else { return }
-        await restartAgentForPermissionRefresh()
     }
 
     public func synchronizeOnLaunch() async {
@@ -99,6 +93,21 @@ public final class ControlViewModel {
         case .failure:
             publishFailure(.agentUnavailable, revision: revision)
         }
+    }
+
+    public func refreshPermissionStatus() async {
+        guard !Task.isCancelled, !isLoading, !permissionRefreshInProgress else { return }
+        permissionRefreshInProgress = true
+        defer { permissionRefreshInProgress = false }
+        let revision = synchronizationRevision
+        let result = await offMain { [agent] in try agent.state() }
+        guard !Task.isCancelled, revision == synchronizationRevision else { return }
+        guard case let .success(freshState) = result else { return }
+        guard state?.permissions != freshState.permissions else { return }
+        state = freshState
+        permissionSyncState = .available(freshState.permissions)
+        inlineError = nil
+        onChange?()
     }
 
     public func update(_ update: ControlUpdate) async {
@@ -180,28 +189,6 @@ public final class ControlViewModel {
         }
         guard !shouldStop(revision: revision) else { return }
         switch recoveredState {
-        case let .success(state):
-            publishFresh(state, revision: revision)
-        case .failure:
-            publishFailure(.agentUnavailable, revision: revision)
-        }
-    }
-
-    private func restartAgentForPermissionRefresh() async {
-        let revision = beginSynchronization()
-        guard !shouldStop(revision: revision) else { return }
-        let restartResult: Result<Void, Error> = await offMain { [lifecycle] in
-            try lifecycle.restartForPermissionRefresh()
-        }
-        guard !shouldStop(revision: revision) else { return }
-        guard case .success = restartResult else {
-            publishFailure(.agentUnavailable, revision: revision)
-            return
-        }
-
-        let stateResult = await offMain { [agent] in try agent.state() }
-        guard !shouldStop(revision: revision) else { return }
-        switch stateResult {
         case let .success(state):
             publishFresh(state, revision: revision)
         case .failure:

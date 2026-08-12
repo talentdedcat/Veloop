@@ -3,7 +3,7 @@ import XCTest
 
 final class InputSubsystemCoordinatorTests: XCTestCase {
     @MainActor
-    func testRunsOnlyWhenEnabledAndListenPermissionAreBothTrue() {
+    func testRunsOnlyWhenEnabledAndAccessibilityAreBothTrue() {
         let cases: [(enabled: Bool, allowed: Bool, expected: [String])] = [
             (false, false, ["stop", "deactivate"]),
             (false, true, ["stop", "deactivate"]),
@@ -28,7 +28,7 @@ final class InputSubsystemCoordinatorTests: XCTestCase {
 
             coordinator.synchronize(
                 enabled: testCase.enabled,
-                listenEvents: testCase.allowed
+                accessibility: testCase.allowed
             )
 
             XCTAssertEqual(events, testCase.expected)
@@ -51,10 +51,10 @@ final class InputSubsystemCoordinatorTests: XCTestCase {
             deactivatePalette: { events.append("deactivate") }
         )
 
-        coordinator.synchronize(enabled: true, listenEvents: true)
-        coordinator.synchronize(enabled: true, listenEvents: true)
-        coordinator.synchronize(enabled: false, listenEvents: true)
-        coordinator.synchronize(enabled: false, listenEvents: false)
+        coordinator.synchronize(enabled: true, accessibility: true)
+        coordinator.synchronize(enabled: true, accessibility: true)
+        coordinator.synchronize(enabled: false, accessibility: true)
+        coordinator.synchronize(enabled: false, accessibility: false)
 
         XCTAssertEqual(events, ["start", "activate", "stop", "deactivate"])
     }
@@ -75,9 +75,32 @@ final class InputSubsystemCoordinatorTests: XCTestCase {
             deactivatePalette: { events.append("deactivate") }
         )
 
-        coordinator.synchronize(enabled: true, listenEvents: true)
-        coordinator.synchronize(enabled: false, listenEvents: true)
+        coordinator.synchronize(enabled: true, accessibility: true)
+        coordinator.synchronize(enabled: false, accessibility: true)
 
         XCTAssertEqual(events, ["start", "stop", "deactivate"])
+    }
+
+    @MainActor
+    func testUnexpectedListenerStopAllowsPermissionRecoveryToRestartListening() {
+        var events: [String] = []
+        let coordinator = InputSubsystemCoordinator(
+            startListening: {
+                events.append("start")
+                return true
+            },
+            stopListening: { events.append("stop") },
+            activatePalette: {
+                events.append("activate")
+                return Task {}
+            },
+            deactivatePalette: { events.append("deactivate") }
+        )
+
+        coordinator.synchronize(enabled: true, accessibility: true)
+        coordinator.listenerStoppedUnexpectedly()
+        coordinator.synchronize(enabled: true, accessibility: true)
+
+        XCTAssertEqual(events, ["start", "activate", "deactivate", "start", "activate"])
     }
 }

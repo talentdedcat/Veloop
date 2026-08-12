@@ -342,10 +342,11 @@ final class PackagingContractTests: XCTestCase {
         let model = try text("Sources/Core/Control/ControlViewModel.swift")
         let delegate = try text("Sources/App/AppDelegate.swift")
 
-        XCTAssertTrue(model.contains("!permissions.canCycle"))
-        XCTAssertTrue(model.contains("restartForPermissionRefresh()"))
+        XCTAssertTrue(model.contains("refreshPermissionStatus()"))
+        XCTAssertFalse(model.contains("restartAgentForPermissionRefresh"))
         XCTAssertTrue(delegate.contains("await viewModel.applicationDidBecomeActive("))
-        XCTAssertTrue(delegate.contains("forcePermissionRefresh: forcePermissionRefresh"))
+        XCTAssertTrue(delegate.contains("await viewModel.refreshPermissionStatus()"))
+        XCTAssertTrue(delegate.contains("withTimeInterval: 0.1"))
         XCTAssertFalse(delegate.contains("await viewModel.reload()"))
     }
 
@@ -367,7 +368,7 @@ final class PackagingContractTests: XCTestCase {
         let suffix = delegate[activation.lowerBound...]
 
         XCTAssertTrue(suffix.contains("await viewModel.applicationDidBecomeActive("))
-        XCTAssertTrue(suffix.contains("forcePermissionRefresh: forcePermissionRefresh"))
+        XCTAssertFalse(suffix.contains("forcePermissionRefresh"))
         XCTAssertFalse(suffix.contains("ensureRegistered"))
     }
 

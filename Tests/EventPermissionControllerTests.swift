@@ -2,19 +2,19 @@ import XCTest
 @testable import VeloopCore
 
 final class EventPermissionControllerTests: XCTestCase {
-    func testCanCycleRequiresEveryRuntimeCapability() {
-        XCTAssertTrue(EventPermissionStatus(
+    func testCanCycleUsesAccessibilityAsTheSingleUserPermission() {
+        for status in [
+            EventPermissionStatus(listenEvents: false, postEvents: false, accessibility: true),
+            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: true),
+            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true),
+        ] {
+            XCTAssertTrue(status.canCycle)
+        }
+        XCTAssertFalse(EventPermissionStatus(
             listenEvents: true,
             postEvents: true,
-            accessibility: true
+            accessibility: false
         ).canCycle)
-        for status in [
-            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true),
-            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: true),
-            EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: false),
-        ] {
-            XCTAssertFalse(status.canCycle)
-        }
     }
 
     func testStatusReadsEveryPreflightOnEveryCall() {

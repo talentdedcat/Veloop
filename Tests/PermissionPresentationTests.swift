@@ -10,14 +10,20 @@ final class PermissionPresentationTests: XCTestCase {
         XCTAssertEqual(state.displayState, .allowed)
     }
 
-    func testAccessibilityDisplayRequiresEveryRuntimeCapability() {
-        for status in [
-            EventPermissionStatus(listenEvents: false, postEvents: true, accessibility: true),
-            EventPermissionStatus(listenEvents: true, postEvents: false, accessibility: true),
-            EventPermissionStatus(listenEvents: true, postEvents: true, accessibility: false),
-        ] {
-            XCTAssertEqual(PermissionSyncState.available(status).displayState, .missing)
-        }
+    func testAccessibilityDisplayIgnoresLegacyEventPreflights() {
+        let accessibilityOnly = EventPermissionStatus(
+            listenEvents: false,
+            postEvents: false,
+            accessibility: true
+        )
+        let missingAccessibility = EventPermissionStatus(
+            listenEvents: true,
+            postEvents: true,
+            accessibility: false
+        )
+
+        XCTAssertEqual(PermissionSyncState.available(accessibilityOnly).displayState, .allowed)
+        XCTAssertEqual(PermissionSyncState.available(missingAccessibility).displayState, .missing)
     }
 
     func testCheckingAndUnavailableNeverDisplayAsMissing() {

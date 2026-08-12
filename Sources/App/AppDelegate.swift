@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let localizationController = LocalizationController()
     private var controlWindowController: ControlWindowController?
     private var viewModel: ControlViewModel?
-    private var systemSettingsWasActive = false
+    private var permissionRefreshTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -103,13 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         guard let viewModel else { return }
-        let forcePermissionRefresh = systemSettingsWasActive
-        systemSettingsWasActive = false
-        Task {
-            await viewModel.applicationDidBecomeActive(
-                forcePermissionRefresh: forcePermissionRefresh
-            )
-        }
+        stopPermissionRefreshMonitoring()
+        Task { await viewModel.applicationDidBecomeActive() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -122,9 +117,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func workspaceApplicationDidActivate(_ notification: Notification) {
         guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
-                as? NSRunningApplication,
-              application.bundleIdentifier == "com.apple.systempreferences" else { return }
-        systemSettingsWasActive = true
+                as? NSRunningApplication else { return }
+        guard application.bundleIdentifier == "com.apple.systempreferences" else {
+            stopPermissionRefreshMonitoring()
+            return
+        }
+        startPermissionRefreshMonitoring()
+    }
+
+    private func startPermissionRefreshMonitoring() {
+        guard permissionRefreshTimer == nil else { return }
+        permissionRefreshTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) {
+            [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let viewModel = self?.viewModel else { return }
+                await viewModel.refreshPermissionStatus()
+            }
+        }
+    }
+
+    private func stopPermissionRefreshMonitoring() {
+        permissionRefreshTimer?.invalidate()
+        permissionRefreshTimer = nil
     }
 
     private func ensurePaletteInstalled() {

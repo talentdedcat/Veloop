@@ -18,6 +18,12 @@ final class PublicTreeContractTests: XCTestCase {
             XCTAssertFalse(gitignoreRules.contains(rule), "\(rule) must not be publicly ignored")
         }
         XCTAssertTrue(gitignoreRules.contains("Package.swift"))
+        XCTAssertFalse(gitignoreRules.contains("Tests/"))
+        XCTAssertFalse(gitignoreRules.contains("Tests/*.swift"))
+        XCTAssertFalse(gitignoreRules.contains("*.swift"))
+        XCTAssertTrue(gitignoreRules.contains("*.xcresult"))
+        XCTAssertTrue(gitignoreRules.contains("*.xctest/"))
+        XCTAssertTrue(gitignoreRules.contains("*.xctestrun"))
 
         for path in [
             "Sources/Core/Configuration/Configuration.swift",

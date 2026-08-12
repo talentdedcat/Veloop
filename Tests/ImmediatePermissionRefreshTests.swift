@@ -34,7 +34,35 @@ final class ImmediatePermissionRefreshTests: XCTestCase {
     }
 
     @MainActor
-    func testDirectSystemSettingsGrantRestartsMissingAgentBeforePublishingFreshState() async {
+    func testPermissionRefreshPublishesRevocationWithoutCheckingOrRestartingAgent() async {
+        let calls = RefreshCallRecorder()
+        let granted = refreshState(enabled: true)
+        let revoked = ControlState(
+            enabled: true,
+            historyCount: 1,
+            storageBytes: 1,
+            configuration: .default,
+            permissions: EventPermissionStatus(
+                listenEvents: false,
+                postEvents: false,
+                accessibility: false
+            )
+        )
+        let agent = RefreshAgent(calls: calls, results: [.success(granted), .success(revoked)])
+        let lifecycle = RefreshLifecycle(calls: calls)
+        let model = ControlViewModel(agent: agent, lifecycle: lifecycle)
+
+        await model.synchronizeOnLaunch()
+        await model.refreshPermissionStatus()
+
+        XCTAssertEqual(model.permissionSyncState, .available(revoked.permissions))
+        XCTAssertFalse(model.isLoading)
+        XCTAssertEqual(lifecycle.restartCount, 0)
+        XCTAssertEqual(calls.values, ["state", "state"])
+    }
+
+    @MainActor
+    func testActivationPublishesGrantedStateWithoutRestartingAgent() async {
         let calls = RefreshCallRecorder()
         let missing = ControlState(
             enabled: true,
@@ -57,13 +85,13 @@ final class ImmediatePermissionRefreshTests: XCTestCase {
 
         await model.applicationDidBecomeActive()
 
-        XCTAssertEqual(calls.values, ["state", "restart", "state"])
-        XCTAssertEqual(lifecycle.restartCount, 1)
-        XCTAssertEqual(model.state, granted)
+        XCTAssertEqual(calls.values, ["state"])
+        XCTAssertEqual(lifecycle.restartCount, 0)
+        XCTAssertEqual(model.state, missing)
     }
 
     @MainActor
-    func testReturnFromSystemSettingsRestartsBeforePublishingRevocation() async {
+    func testPermissionRefreshPublishesRevocationWithoutRestartingAgent() async {
         let calls = RefreshCallRecorder()
         let granted = refreshState(enabled: true)
         let revoked = ControlState(
@@ -85,16 +113,16 @@ final class ImmediatePermissionRefreshTests: XCTestCase {
         let model = ControlViewModel(agent: agent, lifecycle: lifecycle)
 
         await model.synchronizeOnLaunch()
-        await model.applicationDidBecomeActive(forcePermissionRefresh: true)
+        await model.refreshPermissionStatus()
 
-        XCTAssertEqual(calls.values, ["state", "restart", "state"])
-        XCTAssertEqual(lifecycle.restartCount, 1)
+        XCTAssertEqual(calls.values, ["state", "state"])
+        XCTAssertEqual(lifecycle.restartCount, 0)
         XCTAssertEqual(model.state, revoked)
         XCTAssertEqual(model.permissionSyncState, .available(revoked.permissions))
     }
 
     @MainActor
-    func testRepeatedMissingActivationsRestartOnceUntilGrantAppears() async {
+    func testRepeatedMissingActivationsNeverRestartAgent() async {
         let calls = RefreshCallRecorder()
         let missing = ControlState(
             enabled: true,
@@ -127,12 +155,12 @@ final class ImmediatePermissionRefreshTests: XCTestCase {
 
         await model.applicationDidBecomeActive()
 
-        XCTAssertEqual(lifecycle.restartCount, 2)
-        XCTAssertEqual(model.state, granted)
+        XCTAssertEqual(lifecycle.restartCount, 0)
+        XCTAssertEqual(model.state, missing)
     }
 
     @MainActor
-    func testMissingPermissionRestartsAtMostOncePerActivation() async {
+    func testMissingPermissionNeverRestartsOnActivation() async {
         let calls = RefreshCallRecorder()
         let missing = ControlState(
             enabled: true,
@@ -156,7 +184,7 @@ final class ImmediatePermissionRefreshTests: XCTestCase {
             await model.applicationDidBecomeActive()
         }
 
-        XCTAssertEqual(lifecycle.restartCount, 4)
+        XCTAssertEqual(lifecycle.restartCount, 0)
         XCTAssertEqual(model.state, missing)
     }
 

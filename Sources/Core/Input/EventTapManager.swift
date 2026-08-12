@@ -6,6 +6,7 @@ final class EventTapManager {
     private let controller: PasteCycleController
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    var onUnexpectedStop: () -> Void = {}
 
     init(controller: PasteCycleController) {
         self.controller = controller
@@ -68,6 +69,7 @@ final class EventTapManager {
             } else {
                 DispatchQueue.main.async { [weak self] in
                     self?.stop()
+                    self?.onUnexpectedStop()
                 }
             }
             return Unmanaged.passUnretained(event)

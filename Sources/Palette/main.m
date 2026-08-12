@@ -240,12 +240,17 @@ static NSDictionary *VeloopResponse(
         return nil;
     }
 
+    NSRange selection = NSMakeRange(NSNotFound, 0);
     @try {
-        NSRange selection = [client selectedRange];
-        if (selection.location == NSNotFound || selection.length != 0) {
-            return nil;
-        }
+        selection = [client selectedRange];
+    } @catch (__unused NSException *exception) {
+        return nil;
+    }
+    if (selection.location == NSNotFound || selection.length != 0) {
+        return nil;
+    }
 
+    @try {
         NSRect lineRect = NSZeroRect;
         [client attributesForCharacterIndex:selection.location lineHeightRectangle:&lineRect];
         if (VeloopIsCaretRect(lineRect)) {
@@ -256,7 +261,10 @@ static NSDictionary *VeloopResponse(
                 @"paletteLineRectangle"
             );
         }
+    } @catch (__unused NSException *exception) {
+    }
 
+    @try {
         NSRange actualRange = NSMakeRange(NSNotFound, 0);
         NSRect rangeRect = [client
             firstRectForCharacterRange:NSMakeRange(selection.location, 0)
@@ -270,7 +278,6 @@ static NSDictionary *VeloopResponse(
             );
         }
     } @catch (__unused NSException *exception) {
-        return nil;
     }
     return nil;
 }

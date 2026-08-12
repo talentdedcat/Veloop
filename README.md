@@ -75,8 +75,9 @@ Accessibility is the only permission users need to enable. No separate Input Mon
 
 Veloop does not trigger the macOS permission prompt. **Open Settings** remains
 available in every permission state and only opens the Accessibility pane. The
-status refreshes whenever the app becomes active, so grants and revocations are
-reported without relaunching the control app.
+status refreshes every 100 ms while System Settings is active and stops polling
+as soon as you leave it, so grants and revocations appear without relaunching or
+restarting Veloop.
 
 The caret locator prefers the bundled Palette when macOS already has it enabled,
 then falls back to the current focused Accessibility element. Veloop never asks

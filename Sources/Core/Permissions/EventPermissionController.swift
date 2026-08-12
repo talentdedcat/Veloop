@@ -13,7 +13,7 @@ public struct EventPermissionStatus: Codable, Equatable, Sendable {
     }
 
     public var canCycle: Bool {
-        listenEvents && postEvents && accessibility
+        accessibility
     }
 
 }
