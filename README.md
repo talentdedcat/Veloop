@@ -150,6 +150,11 @@ veloopctl version
 
 Running `veloopctl` without arguments prints the supported command syntax.
 
+## Thanks
+
+Thanks to the [LINUX DO](https://linux.do) community for its support and help
+with Veloop's design.
+
 ## License
 
 Veloop is available under the [MIT License](LICENSE).

@@ -136,6 +136,10 @@ veloopctl version
 
 不带参数运行 `veloopctl` 会输出支持的命令格式。
 
+## 感谢
+
+感谢 [LINUX DO](https://linux.do) 社区对 Veloop 设计的支持和帮助。
+
 ## 许可证
 
 Veloop 使用 [MIT License](../LICENSE)。
