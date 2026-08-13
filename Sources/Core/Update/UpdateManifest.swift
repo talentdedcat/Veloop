@@ -46,6 +46,7 @@ public struct UpdateManifestDecoder: Sendable {
         let document = try JSONDecoder().decode(Document.self, from: data)
         guard document.schemaVersion == 1,
               let version = try? NumericVersion(document.version),
+              Self.isCanonicalReleaseVersion(document.version, parsed: version),
               let releaseURL = URL(string: document.releaseURL),
               Self.isTrusted(releaseURL, version: version),
               Self.valid(document.notes.en),
@@ -67,6 +68,18 @@ public struct UpdateManifestDecoder: Sendable {
                 !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     && $0.unicodeScalars.count <= maximumNoteScalars
             }
+    }
+
+    private static func isCanonicalReleaseVersion(
+        _ value: String,
+        parsed version: NumericVersion
+    ) -> Bool {
+        let components = value.split(separator: ".", omittingEmptySubsequences: false)
+        return components.count == 3
+            && components.allSatisfy { component in
+                component == "0" || (component.first != "0" && !component.isEmpty)
+            }
+            && version.description == value
     }
 
     private static func isTrusted(_ url: URL, version: NumericVersion) -> Bool {

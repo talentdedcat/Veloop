@@ -1,4 +1,5 @@
 import Foundation
+@testable import VeloopCore
 import XCTest
 
 final class PackagingContractTests: XCTestCase {
@@ -52,6 +53,57 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(exists("Configuration/VeloopPalette-Info.plist"))
     }
 
+    func testUpdateManifestGeneratorEmitsRuntimeDecodableMetadata() throws {
+        let result = try runUpdateManifestGenerator(
+            version: "0.3.0",
+            english: "Added localized update checks.\n",
+            chinese: "新增本地化更新检查。\n"
+        )
+
+        XCTAssertEqual(result.status, 0, result.standardError)
+        let manifest = try UpdateManifestDecoder().decode(Data(contentsOf: result.outputURL))
+        XCTAssertEqual(manifest.version, try NumericVersion("0.3.0"))
+        XCTAssertEqual(manifest.notes(for: .english), ["Added localized update checks."])
+        XCTAssertEqual(manifest.notes(for: .simplifiedChinese), ["新增本地化更新检查。"])
+    }
+
+    func testUpdateManifestGeneratorRejectsNoncanonicalVersions() throws {
+        for version in ["0.3.0.0", "00.3.0"] {
+            let result = try runUpdateManifestGenerator(
+                version: version,
+                english: "Change.\n",
+                chinese: "修改。\n"
+            )
+
+            XCTAssertNotEqual(result.status, 0, version)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: result.outputURL.path), version)
+        }
+    }
+
+    func testUpdateManifestGeneratorRejectsRuntimeInvalidBounds() throws {
+        let longNote = String(repeating: "a", count: UpdateManifestDecoder.maximumNoteScalars + 1)
+        let longResult = try runUpdateManifestGenerator(
+            version: "0.3.0",
+            english: "\(longNote)\n",
+            chinese: "修改。\n"
+        )
+        XCTAssertNotEqual(longResult.status, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: longResult.outputURL.path))
+
+        let wideLine = String(repeating: "中", count: UpdateManifestDecoder.maximumNoteScalars)
+        let oversizedNotes = Array(
+            repeating: wideLine,
+            count: UpdateManifestDecoder.maximumNotesPerLanguage
+        ).joined(separator: "\n") + "\n"
+        let oversizedResult = try runUpdateManifestGenerator(
+            version: "0.3.0",
+            english: oversizedNotes,
+            chinese: oversizedNotes
+        )
+        XCTAssertNotEqual(oversizedResult.status, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oversizedResult.outputURL.path))
+    }
+
     func testLocalReleaseBuildSignsNestedCodeInRequiredOrder() throws {
         let script = try text("Packaging/build-release.sh")
 
@@ -78,8 +130,8 @@ final class PackagingContractTests: XCTestCase {
         XCTAssertTrue(verifier.contains("Contents/Resources/veloopctl"))
         XCTAssertTrue(verifier.contains("com.veloop.app"))
         XCTAssertTrue(verifier.contains("com.talentdedcat.veloop.palette"))
-        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.2.3"))
-        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("\"8\""))
+        XCTAssertTrue(verifier.contains("CFBundleShortVersionString") && verifier.contains("0.3.0"))
+        XCTAssertTrue(verifier.contains("CFBundleVersion") && verifier.contains("\"9\""))
         XCTAssertTrue(verifier.contains("x86_64") && verifier.contains("arm64"))
         XCTAssertTrue(verifier.contains("codesign --verify --deep --strict"))
         XCTAssertTrue(verifier.contains("Veloop Agent.app"))
@@ -176,8 +228,8 @@ final class PackagingContractTests: XCTestCase {
             let plist = try XCTUnwrap(
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.3")
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "8")
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.3.0")
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "9")
         }
     }
 
@@ -417,5 +469,48 @@ final class PackagingContractTests: XCTestCase {
 
     private func text(_ relativePath: String) throws -> String {
         try String(contentsOf: repositoryRoot.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+
+    private func runUpdateManifestGenerator(
+        version: String,
+        english: String,
+        chinese: String
+    ) throws -> (status: Int32, standardError: String, outputURL: URL) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "VeloopUpdateManifestTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+
+        let englishURL = directory.appendingPathComponent("notes-en.txt")
+        let chineseURL = directory.appendingPathComponent("notes-zh-Hans.txt")
+        let outputURL = directory.appendingPathComponent("update.json")
+        try Data(english.utf8).write(to: englishURL)
+        try Data(chinese.utf8).write(to: chineseURL)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [
+            repositoryRoot.appendingPathComponent("Packaging/create-update-manifest.sh").path,
+            version,
+            englishURL.path,
+            chineseURL.path,
+        ]
+        var environment = ProcessInfo.processInfo.environment
+        environment["VELOOP_UPDATE_MANIFEST_OUTPUT"] = outputURL.path
+        process.environment = environment
+        let errorPipe = Pipe()
+        process.standardOutput = Pipe()
+        process.standardError = errorPipe
+        try process.run()
+        process.waitUntilExit()
+
+        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        return (
+            process.terminationStatus,
+            String(decoding: errorData, as: UTF8.self),
+            outputURL
+        )
     }
 }

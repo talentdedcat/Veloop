@@ -2,6 +2,7 @@ import Foundation
 
 public struct NumericVersion: Comparable, Hashable, Sendable, CustomStringConvertible {
     private let components: [UInt]
+    private let displayValue: String
 
     public init(_ value: String) throws {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -18,6 +19,7 @@ public struct NumericVersion: Comparable, Hashable, Sendable, CustomStringConver
             }
             parsed.append(component)
         }
+        displayValue = parsed.map(String.init).joined(separator: ".")
         while parsed.count > 1, parsed.last == 0 {
             parsed.removeLast()
         }
@@ -25,7 +27,15 @@ public struct NumericVersion: Comparable, Hashable, Sendable, CustomStringConver
     }
 
     public var description: String {
-        components.map(String.init).joined(separator: ".")
+        displayValue
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.components == rhs.components
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(components)
     }
 
     public static func < (lhs: Self, rhs: Self) -> Bool {

@@ -24,35 +24,44 @@ public final class URLSessionUpdateManifestFetcher: UpdateManifestFetching, @unc
     private let session: URLSession
     private let endpoint: URL
 
-    public init(endpoint: URL = URLSessionUpdateManifestFetcher.endpoint) {
+    public convenience init(endpoint: URL = URLSessionUpdateManifestFetcher.endpoint) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
         configuration.timeoutIntervalForRequest = 8
         configuration.timeoutIntervalForResource = 12
-        session = URLSession(configuration: configuration)
+        self.init(endpoint: endpoint, session: URLSession(configuration: configuration))
+    }
+
+    init(endpoint: URL, session: URLSession) {
+        self.session = session
         self.endpoint = endpoint
     }
 
     public func fetch() async throws -> Data {
-        var request = URLRequest(url: endpoint)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        let (bytes, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse,
-              http.url?.scheme == "https",
-              (200..<300).contains(http.statusCode),
-              http.expectedContentLength <= Int64(UpdateManifestDecoder.maximumBodyBytes) else {
-            throw UpdateFetchError.invalidResponse
-        }
-        var data = Data()
-        data.reserveCapacity(max(0, Int(http.expectedContentLength)))
-        for try await byte in bytes {
-            guard data.count < UpdateManifestDecoder.maximumBodyBytes else {
+        do {
+            var request = URLRequest(url: endpoint)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (bytes, response) = try await session.bytes(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  http.url?.scheme?.lowercased() == "https",
+                  (200..<300).contains(http.statusCode),
+                  http.expectedContentLength <= Int64(UpdateManifestDecoder.maximumBodyBytes) else {
                 throw UpdateFetchError.invalidResponse
             }
-            data.append(byte)
+            var data = Data()
+            data.reserveCapacity(max(0, Int(http.expectedContentLength)))
+            for try await byte in bytes {
+                guard data.count < UpdateManifestDecoder.maximumBodyBytes else {
+                    throw UpdateFetchError.invalidResponse
+                }
+                data.append(byte)
+            }
+            return data
+        } catch {
+            AppLogger.failure(category: "update-check", error: error)
+            throw error
         }
-        return data
     }
 }
 
@@ -108,7 +117,13 @@ public actor UpdateChecker {
         clearInFlight(requestID)
         if mode == .automatic { preferences.recordAutomaticAttempt(at: checkDate) }
 
-        guard let manifest = try? decoder.decode(data) else { return .failed }
+        let manifest: UpdateManifest
+        do {
+            manifest = try decoder.decode(data)
+        } catch {
+            AppLogger.failure(category: "update-check", error: error)
+            return .failed
+        }
         guard manifest.version > currentVersion else { return .upToDate }
         if mode == .automatic,
            (preferences.isSkipped(manifest.version)

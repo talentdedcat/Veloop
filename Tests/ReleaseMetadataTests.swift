@@ -3,8 +3,8 @@ import Foundation
 import XCTest
 
 final class ReleaseMetadataTests: XCTestCase {
-    func testPublicVersionIsZeroTwoThree() {
-        XCTAssertEqual(AppConstants.version, "0.2.3")
+    func testPublicVersionIsZeroThreeZero() {
+        XCTAssertEqual(AppConstants.version, "0.3.0")
     }
 
     func testTrackedBundleMetadataUsesCurrentReleaseVersion() throws {
@@ -17,14 +17,14 @@ final class ReleaseMetadataTests: XCTestCase {
                 PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
             )
 
-            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.2.3", path)
-            XCTAssertEqual(plist["CFBundleVersion"] as? String, "8", path)
+            XCTAssertEqual(plist["CFBundleShortVersionString"] as? String, "0.3.0", path)
+            XCTAssertEqual(plist["CFBundleVersion"] as? String, "9", path)
         }
     }
 
-    func testCaskUsesVersionZeroTwoThreeAndRetainsARealChecksum() throws {
+    func testCaskUsesVersionZeroThreeZeroAndRetainsARealChecksum() throws {
         let cask = try text("Casks/veloop.rb")
-        XCTAssertTrue(cask.contains("version \"0.2.3\""))
+        XCTAssertTrue(cask.contains("version \"0.3.0\""))
         XCTAssertNotNil(
             cask.range(of: #"sha256 "[0-9a-f]{64}""#, options: .regularExpression)
         )
@@ -35,8 +35,8 @@ final class ReleaseMetadataTests: XCTestCase {
         let readme = try text("README.md")
 
         for requiredText in [
-            "release-v0.2.3",
-            "Veloop-0.2.3-universal.dmg",
+            "release-v0.3.0",
+            "Veloop-0.3.0-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             "Accessibility is the only permission users need to enable",
@@ -62,8 +62,8 @@ final class ReleaseMetadataTests: XCTestCase {
         let readme = try text("Docs/README.zh-CN.md")
 
         for requiredText in [
-            "release-v0.2.3",
-            "Veloop-0.2.3-universal.dmg",
+            "release-v0.3.0",
+            "Veloop-0.3.0-universal.dmg",
             "brew install --cask Veloop",
             "xattr -dr com.apple.quarantine /Applications/Veloop.app",
             "用户只需开启“辅助功能”",

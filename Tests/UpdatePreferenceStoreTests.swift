@@ -23,6 +23,21 @@ final class UpdatePreferenceStoreTests: XCTestCase {
         XCTAssertTrue(store.isAutomaticCheckDue(at: start.addingTimeInterval(86_400)))
     }
 
+    func testFutureAutomaticAttemptDoesNotSuppressChecksAfterClockMovesBackward() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        store.recordAutomaticAttempt(at: now.addingTimeInterval(86_400))
+
+        XCTAssertTrue(store.isAutomaticCheckDue(at: now))
+    }
+
+    func testClockRollbackDoesNotExtendRemindLaterBeyondOneDay() throws {
+        let version = try NumericVersion("0.3.0")
+        let now = Date(timeIntervalSince1970: 1_000)
+        store.remindLater(about: version, at: now.addingTimeInterval(86_400))
+
+        XCTAssertFalse(store.isDeferred(version, at: now))
+    }
+
     func testSkipAndDeferralApplyOnlyToMatchingVersion() throws {
         let current = try NumericVersion("0.2.4")
         let newer = try NumericVersion("0.2.5")

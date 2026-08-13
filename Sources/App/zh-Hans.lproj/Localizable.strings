@@ -41,7 +41,6 @@
 "update.section.title" = "软件更新";
 "update.currentVersion" = "Veloop %@";
 "update.check" = "检查更新";
-"update.status.idle" = "每天自动检查更新";
 "update.status.checking" = "正在检查…";
 "update.status.upToDate" = "Veloop 已是最新版本";
 "update.status.available" = "有新版本可用";

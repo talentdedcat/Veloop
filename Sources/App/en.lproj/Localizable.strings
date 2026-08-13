@@ -41,7 +41,6 @@
 "update.section.title" = "Software Update";
 "update.currentVersion" = "Veloop %@";
 "update.check" = "Check for Updates";
-"update.status.idle" = "Updates are checked daily";
 "update.status.checking" = "Checking…";
 "update.status.upToDate" = "Veloop is up to date";
 "update.status.available" = "An update is available";

@@ -332,7 +332,9 @@ final class ControlViewController: NSViewController {
         let key: String
         switch updateCoordinator.status {
         case .idle:
-            key = "update.status.idle"
+            softwareUpdateStatusLabel.stringValue = ""
+            checkForUpdatesButton.isEnabled = true
+            return
         case .checking:
             key = "update.status.checking"
         case .upToDate:

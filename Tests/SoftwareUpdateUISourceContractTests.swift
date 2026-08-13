@@ -20,7 +20,6 @@ final class SoftwareUpdateUISourceContractTests: XCTestCase {
             "update.section.title",
             "update.currentVersion",
             "update.check",
-            "update.status.idle",
             "update.status.checking",
             "update.status.upToDate",
             "update.status.available",
@@ -35,6 +34,9 @@ final class SoftwareUpdateUISourceContractTests: XCTestCase {
             XCTAssertTrue(english.contains("\"\(key)\" = "), "English is missing \(key)")
             XCTAssertTrue(chinese.contains("\"\(key)\" = "), "Chinese is missing \(key)")
         }
+        XCTAssertFalse(english.contains("\"update.status.idle\""))
+        XCTAssertFalse(chinese.contains("\"update.status.idle\""))
+        XCTAssertTrue(controller.contains("case .idle:\n            softwareUpdateStatusLabel.stringValue = \"\""))
     }
 
     func testUpdateWindowExposesExactlyThreeApprovedActions() throws {

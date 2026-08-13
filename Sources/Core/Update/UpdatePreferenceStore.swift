@@ -32,7 +32,8 @@ public final class UpdatePreferenceStore: @unchecked Sendable {
             guard let last = defaults.object(forKey: Key.lastAutomaticAttempt) as? Date else {
                 return true
             }
-            return date.timeIntervalSince(last) >= Self.automaticCheckInterval
+            let elapsed = date.timeIntervalSince(last)
+            return elapsed < 0 || elapsed >= Self.automaticCheckInterval
         }
     }
 
@@ -54,8 +55,12 @@ public final class UpdatePreferenceStore: @unchecked Sendable {
 
     public func isDeferred(_ version: NumericVersion, at date: Date) -> Bool {
         lock.withLock {
-            defaults.string(forKey: Key.deferredVersion) == version.description
-                && (defaults.object(forKey: Key.deferredUntil) as? Date).map { date < $0 } == true
+            guard defaults.string(forKey: Key.deferredVersion) == version.description,
+                  let deferredUntil = defaults.object(forKey: Key.deferredUntil) as? Date else {
+                return false
+            }
+            let remaining = deferredUntil.timeIntervalSince(date)
+            return remaining > 0 && remaining <= Self.automaticCheckInterval
         }
     }
 

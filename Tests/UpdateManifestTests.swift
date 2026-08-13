@@ -53,6 +53,15 @@ final class UpdateManifestTests: XCTestCase {
         XCTAssertThrowsError(try decoder.decode(data(version: "0.2.4", englishNotes: ["  "])))
     }
 
+    func testReleaseVersionMustUseCanonicalThreeComponentSpelling() {
+        for version in ["0.3", "0.3.0.0", "00.3.0"] {
+            XCTAssertThrowsError(try decoder.decode(data(
+                version: version,
+                releaseURL: "https://github.com/talentdedcat/Veloop/releases/tag/v\(version)"
+            )), version)
+        }
+    }
+
     func testEnforcesBodyAndNoteBounds() {
         XCTAssertThrowsError(try decoder.decode(Data(repeating: 0x20, count: UpdateManifestDecoder.maximumBodyBytes + 1)))
         XCTAssertThrowsError(try decoder.decode(data(
