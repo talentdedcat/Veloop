@@ -305,7 +305,7 @@ static NSDictionary *VeloopResponse(
 
     @try {
         NSRect lineRect = NSZeroRect;
-        [client attributesForCharacterIndex:selection.location lineHeightRectangle:&lineRect];
+        [client attributesForCharacterIndex:0 lineHeightRectangle:&lineRect];
         if (VeloopIsCaretRect(lineRect)) {
             return VeloopResponse(
                 clientBundle,

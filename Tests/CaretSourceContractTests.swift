@@ -138,6 +138,19 @@ final class CaretSourceContractTests: XCTestCase {
         XCTAssertLessThan(firstCatch.lowerBound, rangeQuery.lowerBound)
     }
 
+    func testPaletteUsesCurrentSelectionIndexForLineGeometryAndDocumentIndexForRangeFallback() throws {
+        let source = try text("Sources/Palette/main.m")
+        let method = try bracedBody(after: "- (NSDictionary *)caretResponseForBundle:", in: source)
+
+        XCTAssertTrue(method.contains(
+            "[client attributesForCharacterIndex:0 lineHeightRectangle:&lineRect];"
+        ))
+        XCTAssertFalse(method.contains("attributesForCharacterIndex:selection.location"))
+        XCTAssertTrue(method.contains(
+            "firstRectForCharacterRange:NSMakeRange(selection.location, 0)"
+        ))
+    }
+
     func testPaletteIPCValidatesIdentityAndBoundsPayloads() throws {
         let helper = try text("Sources/Palette/main.m")
         let client = try text("Sources/Core/Overlay/CaretLocator.swift")
