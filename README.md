@@ -6,7 +6,7 @@
     <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Universal arm64 and x86_64" src="https://img.shields.io/badge/Universal-arm64_%2B_x86__64-30343f?style=flat&logo=apple&logoColor=white">
     <img alt="Swift 5" src="https://img.shields.io/badge/Swift-5-f05237?style=flat&logo=swift&logoColor=white">
-    <img alt="release v0.3.0" src="https://img.shields.io/badge/release-v0.3.0-1683c7?style=flat">
+    <img alt="release v0.3.1" src="https://img.shields.io/badge/release-v0.3.1-1683c7?style=flat">
     <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5b9d2f?style=flat">
   </p>
   <p>English · <a href="Docs/README.zh-CN.md">简体中文</a></p>
@@ -43,11 +43,11 @@ brew install --cask Veloop
 
 ### DMG
 
-[Download `Veloop-0.3.0-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.3.0/Veloop-0.3.0-universal.dmg),
+[Download `Veloop-0.3.1-universal.dmg`](https://github.com/talentdedcat/Veloop/releases/download/v0.3.1/Veloop-0.3.1-universal.dmg),
 open it, and drag `Veloop.app` to Applications.
 
 > [!IMPORTANT]
-> v0.3.0 is ad-hoc signed and not notarized. Only remove quarantine from a copy
+> v0.3.1 is ad-hoc signed and not notarized. Only remove quarantine from a copy
 > installed from this repository, then launch it:
 >
 > ```bash
